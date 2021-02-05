@@ -4,11 +4,11 @@ import pandas as pd
 
 pd.set_option('display.max_colwidth', 250)
 
-for part in ['train', 'test']:
+for part in ['train']:
     file_lines = []
     with bz2.BZ2File('../data/amazon/clean/{}.ft.txt.bz2'.format(part)) as f:
         for i, x in enumerate(f.readlines()):
-            if i > 100000:
+            if i > 50000:
                 break
             file_lines.append(x.decode('utf-8'))
     labels = [int(x.startswith('__label__2')) for x in file_lines]
@@ -24,4 +24,5 @@ for part in ['train', 'test']:
 
     print(df.head())
     print(len(df))
-    df.to_csv('../data/amazon/{}.csv'.format(part), index=False)
+    print(df['label'].value_counts())
+    df.to_csv('../data/amazon/data.csv', index=False)

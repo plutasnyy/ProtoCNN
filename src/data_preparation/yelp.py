@@ -1,6 +1,8 @@
 import pandas as pd
 
-for part in ['train', 'test']:
+pd.set_option('display.max_colwidth', 250)
+
+for part in ['train']:
     df = pd.read_csv('../data/yelp/clean/{}.csv'.format(part), names=['stars', 'text'])
     df['label'] = (df['stars'] >= 3).astype(int)
 
@@ -11,5 +13,7 @@ for part in ['train', 'test']:
     result_df = result_df.drop(['stars'], axis=1)
 
     print(result_df.head())
+    print(len(result_df))
     print(result_df['label'].value_counts())
-    result_df.to_csv('../data/yelp/{}.csv'.format(part), index=False)
+
+    result_df.to_csv('../data/yelp/data.csv', index=False)
