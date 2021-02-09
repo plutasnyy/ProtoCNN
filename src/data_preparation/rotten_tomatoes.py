@@ -12,6 +12,7 @@ df_pos = df[df['label'] == 1].sample(n=15000)
 df_neg = df[df['label'] == 0].sample(n=15000)
 
 result_df = pd.concat([df_pos, df_neg]).sample(frac=1)
+result_df.columns = ['text', 'label']
 
 print(result_df.head(10))
 print(len(result_df))
