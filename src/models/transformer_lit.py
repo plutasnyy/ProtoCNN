@@ -18,23 +18,16 @@ class TransformerLitModule(pl.LightningModule):
         return self.model(*args, **kwargs)
 
     def training_step(self, batch, batch_nb):
+        print(self.learning_rate)
         outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['label'])
-        self.log('train_acc', self.train_acc(outputs.logits, batch['label']), prog_bar=True)
+        self.log('train_loss', outputs.loss.item(), prog_bar=True)
+        self.log('train_acc', self.train_acc(outputs.logits, batch['label']), prog_bar=True, on_epoch=True)
         return {'loss': outputs.loss}
 
     def validation_step(self, batch, batch_nb):
         outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['label'])
         self.log('val_loss', outputs.loss.item(), prog_bar=True)
-        self.log('val_acc', self.valid_acc(outputs.logits, batch['label']), prog_bar=True)
-
-    def validation_epoch_end(self, outputs) -> None:
-        self.train_acc.reset()
-        self.valid_acc.reset()
-        # logits = outputs.logits.detach().cpu().numpy()
-        # y_pred = np.argmax(logits, axis=-1).astype(int)
-        # y_true = batch['label'].to('cpu').numpy().astype(int)
-        #
-        # self.log('f1', np.mean(np.array(f1_avg)))
+        self.log('val_acc', self.valid_acc(outputs.logits, batch['label']), prog_bar=True, on_epoch=True)
 
     def configure_optimizers(self):
         optimizer = AdamW(self.model.parameters(), lr=self.learning_rate, eps=1e-8)
