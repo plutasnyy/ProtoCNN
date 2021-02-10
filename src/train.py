@@ -69,7 +69,6 @@ def train(**params):
 
     model = TransformerLitModule(model=model_backbone, tokenizer=tokenizer, lr=params.lr)
 
-    print(params.find_lr)
     trainer = Trainer(
         auto_lr_find=params.find_lr,
         logger=logger,

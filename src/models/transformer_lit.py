@@ -18,7 +18,6 @@ class TransformerLitModule(pl.LightningModule):
         return self.model(*args, **kwargs)
 
     def training_step(self, batch, batch_nb):
-        print(self.learning_rate)
         outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['label'])
         self.log('train_loss', outputs.loss.item(), prog_bar=True)
         self.log('train_acc', self.train_acc(outputs.logits, batch['label']), prog_bar=True, on_epoch=True)
