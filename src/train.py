@@ -1,5 +1,6 @@
 import os
 from configparser import ConfigParser
+from copy import deepcopy
 from pathlib import Path
 
 import click
@@ -43,23 +44,14 @@ def train(**params):
     if params.length is None:
         params.length = dataset_tokens_length[params.data_set]
 
-    logger, callbacks = False, list()
+    logger, base_callbacks = False, list()
     if params.logger:
         comet_config = EasyDict(config['cometml'])
         logger = CometLogger(api_key=comet_config.apikey, project_name=comet_config.projectname,
                              workspace=comet_config.workspace)
         logger.experiment.log_code(folder='src')
         logger.log_hyperparams(params)
-        callbacks.append(LearningRateMonitor(logging_interval='epoch'))
-
-    model_checkpoint = ModelCheckpoint(filepath='checkpoints/{epoch:02d}-{val_loss:.4f}-{val_acc:.4f}',
-                                       save_weights_only=True, save_top_k=10, monitor='val_loss', mode='min', period=1)
-    callbacks.extend([model_checkpoint])
-
-    model_class, tokenizer_class, model_name = model_data[params.model]
-    tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
-    model_backbone = model_class.from_pretrained(model_name, num_labels=2, output_attentions=False,
-                                                 output_hidden_states=False)
+        base_callbacks.append(LearningRateMonitor(logging_interval='epoch'))
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
 
@@ -71,15 +63,29 @@ def train(**params):
         skf = StratifiedKFold(n_splits=params.fold)
         n_splits = list(skf.split(X=df_dataset['text'], y=df_dataset['label']))
 
-    for train_index, test_index in n_splits:
+    for fold_id, (train_index, test_index) in enumerate(n_splits):
+
+        model_checkpoint = ModelCheckpoint(
+            filepath='checkpoints/{epoch:02d}-{val_loss:.4f}-{val_acc:.4f}_fold_' + str(fold_id),
+            save_weights_only=True, save_top_k=10, monitor='val_loss_' + str(fold_id), mode='min',
+            period=1
+        )
+
+        callbacks = deepcopy(base_callbacks)
+        callbacks.extend([model_checkpoint])
+
+        model_class, tokenizer_class, model_name = model_data[params.model]
+        tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
+        model_backbone = model_class.from_pretrained(model_name, num_labels=2, output_attentions=False,
+                                                     output_hidden_states=False)
+
         train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[test_index]
-        print(valid_df['label'].value_counts())
         train_loader = DataLoader(SentimentDataset(train_df, tokenizer=tokenizer, length=params.length),
                                   num_workers=8, batch_size=params.batch_size, shuffle=True)
         val_loader = DataLoader(SentimentDataset(valid_df, tokenizer=tokenizer, length=params.length),
                                 num_workers=8, batch_size=params.batch_size, shuffle=False)
 
-        model = TransformerLitModule(model=model_backbone, tokenizer=tokenizer, lr=params.lr)
+        model = TransformerLitModule(model=model_backbone, tokenizer=tokenizer, lr=params.lr, fold_id=fold_id)
 
         trainer = Trainer(
             auto_lr_find=params.find_lr,
@@ -98,7 +104,7 @@ def train(**params):
             for absolute_path in model_checkpoint.best_k_models.keys():
                 logger.experiment.log_model(Path(absolute_path).name, absolute_path)
             if model_checkpoint.best_model_score:
-                logger.log_metrics({'best_model_score': model_checkpoint.best_model_score.tolist()})
+                logger.log_metrics({'best_model_score_' + str(fold_id): model_checkpoint.best_model_score.tolist()})
 
 
 if __name__ == '__main__':
