@@ -131,3 +131,17 @@ dmypy.json
 .idea
 data
 /config.ini
+/checkpoints/fold_0_epoch=00-val_loss_0=0.6987-val_acc_0=0.5000.ckpt
+/checkpoints/fold_0_epoch=00-val_loss_0=0.6987-val_acc_0=0.5000-v0.ckpt
+/checkpoints/fold_0_epoch=00-val_loss_0=0.7054-val_acc_0=0.3750.ckpt
+/checkpoints/fold_0_epoch=00-val_loss_0=0.7054-val_acc_0=0.3750-v0.ckpt
+/checkpoints/fold_0_epoch=00-val_loss_0=0.7054-val_acc_0=0.3750-v1.ckpt
+/checkpoints/fold_0_epoch=01-val_loss_0=0.6980-val_acc_0=0.5000.ckpt
+/checkpoints/fold_0_epoch=01-val_loss_0=0.6980-val_acc_0=0.5000-v0.ckpt
+/checkpoints/fold_0_epoch=02-val_loss_0=0.6978-val_acc_0=0.5000.ckpt
+/checkpoints/fold_1_epoch=00-val_loss_1=0.7225-val_acc_1=0.4250.ckpt
+/checkpoints/fold_1_epoch=01-val_loss_1=0.7172-val_acc_1=0.4250.ckpt
+/checkpoints/fold_1_epoch=02-val_loss_1=0.7161-val_acc_1=0.4250.ckpt
+/checkpoints/fold_2_epoch=00-val_loss_2=0.7250-val_acc_2=0.1000.ckpt
+/checkpoints/fold_2_epoch=01-val_loss_2=0.7071-val_acc_2=0.3250.ckpt
+/checkpoints/fold_2_epoch=02-val_loss_2=0.7039-val_acc_2=0.3750.ckpt
