@@ -54,11 +54,6 @@ def train(**params):
         logger.log_hyperparams(params)
         base_callbacks.append(LearningRateMonitor(logging_interval='epoch'))
 
-    model_class, tokenizer_class, model_name = model_data[params.model]
-    tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
-    model_backbone = model_class.from_pretrained(model_name, num_labels=2, output_attentions=False,
-                                                 output_hidden_states=False)
-
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
 
     if params.fold == 1:
@@ -80,6 +75,11 @@ def train(**params):
 
         callbacks = deepcopy(base_callbacks)
         callbacks.extend([model_checkpoint])
+
+        model_class, tokenizer_class, model_name = model_data[params.model]
+        tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
+        model_backbone = model_class.from_pretrained(model_name, num_labels=2, output_attentions=False,
+                                                     output_hidden_states=False)
 
         train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[test_index]
         train_loader = DataLoader(SentimentDataset(train_df, tokenizer=tokenizer, length=params.length),
