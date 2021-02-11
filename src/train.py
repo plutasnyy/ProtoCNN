@@ -67,7 +67,7 @@ def train(**params):
 
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/{epoch:02d}-{val_loss:.4f}-{val_acc:.4f}_fold_' + str(fold_id),
-            save_weights_only=True, save_top_k=10, monitor='val_acc_' + str(fold_id), mode='min',
+            save_weights_only=True, save_top_k=10, monitor='val_acc_' + str(fold_id),
             period=1
         )
 
