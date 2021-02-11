@@ -61,7 +61,7 @@ def train(**params):
                                                  output_hidden_states=False)
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
-    train_df, valid_df = train_test_split(df_dataset)
+    train_df, valid_df = train_test_split(df_dataset, test_size=0.2, stratify=df_dataset['label'])
     train_loader = DataLoader(SentimentDataset(train_df, tokenizer=tokenizer, length=params.length),
                               num_workers=8, batch_size=params.batch_size, shuffle=True)
     val_loader = DataLoader(SentimentDataset(valid_df, tokenizer=tokenizer, length=params.length),
