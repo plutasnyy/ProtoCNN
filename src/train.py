@@ -7,12 +7,14 @@ import click
 import pandas as pd
 from easydict import EasyDict
 
+from utils import get_n_splits, log_splits
+
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import CometLogger
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from pytorch_lightning.loggers.base import DummyLogger
 from torch.utils.data import DataLoader
 
 from configs import model_data, dataset_tokens_length
@@ -45,24 +47,20 @@ def train(**params):
     if params.length is None:
         params.length = dataset_tokens_length[params.data_set]
 
-    logger, base_callbacks = False, list()
+    logger = DummyLogger()
     if params.logger:
         comet_config = EasyDict(config['cometml'])
         logger = CometLogger(api_key=comet_config.apikey, project_name=comet_config.projectname,
                              workspace=comet_config.workspace)
-        logger.experiment.log_code(folder='src')
-        logger.log_hyperparams(params)
-        base_callbacks.append(LearningRateMonitor(logging_interval='epoch'))
+
+    logger.experiment.log_code(folder='src')
+    logger.log_hyperparams(params)
+    base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
+    n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', test_size=0.2, folds=params.fold)
 
-    if params.fold == 1:
-        train_indices, val_indices = train_test_split(list(range(len(df_dataset))), test_size=0.2,
-                                                      stratify=df_dataset['label'])
-        n_splits = [(train_indices, val_indices)]
-    else:
-        skf = StratifiedKFold(n_splits=params.fold)
-        n_splits = list(skf.split(X=df_dataset['text'], y=df_dataset['label']))
+    log_splits(n_splits, logger)
 
     best_models_scores = []
     for fold_id, (train_index, test_index) in enumerate(n_splits):
@@ -73,8 +71,7 @@ def train(**params):
             monitor='val_acc_' + i, period=1
         )
 
-        callbacks = deepcopy(base_callbacks)
-        callbacks.extend([model_checkpoint])
+        callbacks = deepcopy(base_callbacks) + [model_checkpoint]
 
         model_class, tokenizer_class, model_name = model_data[params.model]
         tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
@@ -101,14 +98,13 @@ def train(**params):
 
         trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 
-        if params.logger:
-            for absolute_path in model_checkpoint.best_k_models.keys():
-                logger.experiment.log_model(Path(absolute_path).name, absolute_path)
-            if model_checkpoint.best_model_score:
-                best_models_scores.append(model_checkpoint.best_model_score.tolist())
-                logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
+        for absolute_path in model_checkpoint.best_k_models.keys():
+            logger.experiment.log_model(Path(absolute_path).name, absolute_path)
+        if model_checkpoint.best_model_score:
+            best_models_scores.append(model_checkpoint.best_model_score.tolist())
+            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
 
-    if params.logger:
+    if len(best_models_scores) >= 1:
         logger.log_metrics({
             'avg_best_scores': float(np.mean(np.array(best_models_scores))),
             'std_best_scores': float(np.std(np.array(best_models_scores))),
