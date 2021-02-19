@@ -7,21 +7,21 @@ import click
 import pandas as pd
 import torch
 from easydict import EasyDict
-from torchtext import data
-from torchtext.data import BucketIterator
-from torchtext.vocab import FastText
+
+os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from models.cnn.dataframe_dataset import DataFrameDataset
 from models.cnn.lit_module import CNNLitModule
 from utils import get_n_splits, log_splits, get_pad_to_min_len_fn
-
-os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
+from torchtext import data
+from torchtext.data import BucketIterator
+from torchtext.vocab import FastText
 from configs import dataset_tokens_length
 import numpy as np
 
