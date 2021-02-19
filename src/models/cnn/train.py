@@ -5,9 +5,15 @@ from pathlib import Path
 
 import click
 import pandas as pd
+import torch
 from easydict import EasyDict
+from torchtext import data
+from torchtext.data import BucketIterator
+from torchtext.vocab import FastText
 
-from utils import get_n_splits, log_splits
+from models.cnn.dataframe_dataset import DataFrameDataset
+from models.cnn.lit_module import CNNLitModule
+from utils import get_n_splits, log_splits, get_pad_to_min_len_fn
 
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
@@ -15,11 +21,8 @@ from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
-from torch.utils.data import DataLoader
 
-from configs import model_data, dataset_tokens_length
-from datasets import SentimentDataset
-from models.transformer_lit import TransformerLitModule
+from configs import dataset_tokens_length
 import numpy as np
 
 
@@ -73,18 +76,35 @@ def train(**params):
 
         callbacks = deepcopy(base_callbacks) + [model_checkpoint]
 
-        model_class, tokenizer_class, model_name = model_data[params.model]
-        tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)
-        model_backbone = model_class.from_pretrained(model_name, num_labels=2, output_attentions=False,
-                                                     output_hidden_states=False)
-
+        min_len_padding = get_pad_to_min_len_fn(min_length=10)
         train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[test_index]
-        train_loader = DataLoader(SentimentDataset(train_df, tokenizer=tokenizer, length=params.length),
-                                  num_workers=8, batch_size=params.batch_size, shuffle=True)
-        val_loader = DataLoader(SentimentDataset(valid_df, tokenizer=tokenizer, length=params.length),
-                                num_workers=8, batch_size=params.batch_size, shuffle=False)
+        TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
+                          batch_first=True, lower=True, postprocessing=min_len_padding)
+        LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
 
-        model = TransformerLitModule(model=model_backbone, tokenizer=tokenizer, lr=params.lr, fold_id=fold_id)
+        train_dataset = DataFrameDataset(train_df, {
+            'text': TEXT,
+            'label': LABEL
+        })
+
+        val_dataset = DataFrameDataset(valid_df, {
+            'text': TEXT,
+            'label': LABEL
+        })
+
+        train_loader, val_loader = BucketIterator.splits(
+            (train_dataset, val_dataset),
+            batch_size=params.batch_size,
+            sort_key=lambda x: len(x.text),
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+        )
+
+        TEXT.build_vocab(train_dataset.text, vectors=FastText('en'))
+        LABEL.build_vocab(train_dataset.label)
+
+        model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_length=TEXT.vocab.vectors.shape[1], lr=params.lr,
+                             fold_id=fold_id)
+        model.embedding.weight.data.copy_(TEXT.vocab.vectors)
 
         trainer = Trainer(
             auto_lr_find=params.find_lr,

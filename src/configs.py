@@ -1,6 +1,6 @@
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizerFast
 
-model_data = {
+transformer_data = {
     'distilbert': [DistilBertForSequenceClassification, DistilBertTokenizerFast, 'distilbert-base-uncased'],
 }
 

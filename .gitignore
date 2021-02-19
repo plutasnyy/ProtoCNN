@@ -132,3 +132,6 @@ dmypy.json
 data/*
 checkpoints/*
 /config.ini
+.data
+.vector_cache
+dataset
