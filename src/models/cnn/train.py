@@ -40,6 +40,7 @@ import numpy as np
 @click.option('--seed', default=0, type=int)
 @click.option('-bs', '--batch-size', default=32, type=int)
 @click.option('-fdr', '--fast-dev-run', default=False, type=int)
+@click.option('--cache', default=None, type=str)
 def train(**params):
     params = EasyDict(params)
     seed_everything(params.seed)
@@ -99,7 +100,7 @@ def train(**params):
             device='cuda' if torch.cuda.is_available() else 'cpu'
         )
 
-        TEXT.build_vocab(train_dataset.text, vectors=FastText('en'))
+        TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=params.cache))
         LABEL.build_vocab(train_dataset.label)
 
         model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
