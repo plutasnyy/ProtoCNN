@@ -102,7 +102,7 @@ def train(**params):
         TEXT.build_vocab(train_dataset.text, vectors=FastText('en'))
         LABEL.build_vocab(train_dataset.label)
 
-        model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_length=TEXT.vocab.vectors.shape[1], lr=params.lr,
+        model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
                              fold_id=fold_id)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
 

@@ -1,3 +1,5 @@
+from typing import List, Union
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -7,27 +9,37 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import StepLR
 
 
+class ConvolutionalBlock(nn.Module):
+
+    def __init__(self, in_channels=128, out_channels=256, kernel_size=3, padding=1, stride=1):
+        super().__init__()
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=padding, stride=stride)
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        self.relu1 = nn.ReLU()
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu1(out)
+        return out
+
+
 class CNNLitModule(pl.LightningModule):
 
-    def __init__(self, vocab_size, embedding_length, fold_id, lr, static=True, *args, **kwargs):
+    def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fold_id = fold_id
         self.vocab_size = vocab_size
-        self.embedding_length = embedding_length
+        self.embedding_dim = embedding_dim
         self.static = static
         self.learning_rate = lr
 
-        V = vocab_size
-        D = embedding_length
-        C = 1
-        Ci = 1
-        Co = 32  # kernel number
-        Ks = [3, 5, 7, 10]  # kernel sizes
-
-        self.embedding = nn.Embedding(V, D)
-        self.convs = nn.ModuleList([nn.Conv2d(Ci, Co, (K, D)) for K in Ks])
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.conv1 = ConvolutionalBlock(300, 128)
+        self.conv2 = ConvolutionalBlock(128, 256, stride=2)
+        self.conv3 = ConvolutionalBlock(256, 512, stride=2)
         self.dropout = nn.Dropout(0.2)
-        self.fc1 = nn.Linear(len(Ks) * Co, C)
+        self.fc1 = nn.Linear(512, 1)
 
         if self.static:
             self.embedding.weight.requires_grad = False
@@ -37,17 +49,18 @@ class CNNLitModule(pl.LightningModule):
         self.loss = BCEWithLogitsLoss()
 
     def forward(self, x):
-        x = self.embedding(x)  # (N, W, D)
-        x = x.unsqueeze(1)  # (N, Ci, W, D)
-        x = [F.relu(conv(x)).squeeze(3) for conv in self.convs]  # [(N, Co, W), ...]*len(Ks)
-        x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]  # [(N, Co), ...]*len(Ks)
-        x = torch.cat(x, 1)
-        x = self.dropout(x)  # (N, len(Ks)*Co)
-        logit = self.fc1(x).squeeze(1)  # (N, C)
+        x = self.embedding(x).permute((0, 2, 1))
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = F.max_pool1d(x, x.size(2))
+        x = self.dropout(x)
+        x = x.view(x.size(0), -1)
+        logit = self.fc1(x)
         return logit
 
     def training_step(self, batch, batch_nb):
-        outputs = self(batch.text)
+        outputs = self(batch.text).squeeze(1)
         loss = self.loss(outputs, batch.label)
         preds = torch.round(torch.sigmoid(outputs))
 
@@ -57,7 +70,7 @@ class CNNLitModule(pl.LightningModule):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_nb):
-        outputs = self(batch.text)
+        outputs = self(batch.text).squeeze(1)
         loss = self.loss(outputs, batch.label)
         preds = torch.round(torch.sigmoid(outputs))
 
