@@ -47,9 +47,6 @@ def train(**params):
     config = ConfigParser()
     config.read('config.ini')
 
-    if params.length is None:
-        params.length = dataset_tokens_length[params.data_set]
-
     logger = DummyLogger()
     if params.logger:
         comet_config = EasyDict(config['cometml'])

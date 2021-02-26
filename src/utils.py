@@ -37,7 +37,7 @@ def get_n_splits(dataset, x_label, y_label, folds):
 
 
 def log_splits(n_splits, logger):
-    df = pd.DataFrame(n_splits, columns=['train_indices', 'test_indices'])
+    df = pd.DataFrame(n_splits, columns=['train_indices', 'val_indices', 'test_indices'])
     logger.experiment.log_table('kfold_split_indices.csv', tabular_data=df)
 
 
