@@ -82,6 +82,6 @@ class CNNLitModule(pl.LightningModule):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8)
         return {
             'optimizer': optimizer,
-            'lr_scheduler': ReduceLROnPlateau(optimizer, patience=3, factor=0.1, mode='min', min_lr=1e-6),
+            'lr_scheduler': ReduceLROnPlateau(optimizer, patience=2, factor=0.5, mode='min', min_lr=1e-6),
             'monitor': f'val_loss_{self.fold_id}'
         }

@@ -15,14 +15,13 @@ from utils import get_n_splits, log_splits
 
 import torch
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
 from torchtext import data
 from torchtext.data import BucketIterator
 from torchtext.vocab import FastText
-from configs import dataset_tokens_length
 import numpy as np
 
 
@@ -33,7 +32,7 @@ import numpy as np
 @click.option('--logger/--no-logger', default=True)
 @click.option('-e', '--epoch', default=30, type=int)
 @click.option('-f', '--fold', default=1, type=int)
-@click.option('--lr', default=2e-5, type=float)
+@click.option('-lr', default=2e-5, type=float)
 @click.option('--find-lr', default=False, is_flag=True)
 @click.option('--test', default=False, is_flag=True)
 @click.option('--seed', default=0, type=int)
@@ -67,10 +66,10 @@ def train(**params):
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
             save_weights_only=True, save_top_k=10,
-            monitor='val_acc_' + i, period=1
+            monitor=f'val_acc_{i}', period=1
         )
-
-        callbacks = deepcopy(base_callbacks) + [model_checkpoint]
+        early_stop = EarlyStopping(monitor=f'val_loss_{i}', min_delta=0.01, patience=5, verbose=True, mode='min')
+        callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
         if params.test:
             print('TESTING')
