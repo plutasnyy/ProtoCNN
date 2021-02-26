@@ -14,20 +14,26 @@ def call_click_wrapper(f, run_params: dict):
     f(list_of_params)
 
 
-def get_n_splits(dataset, x_label, y_label, test_size, folds):
+def get_n_splits(dataset, x_label, y_label, folds):
     """
-    :param test_size: used when folds == 1
-    :param folds: if > 1 ignore test_size
+    split with ratio train/val/test 60/20/20
+    :param folds: if >
     :return: list of indices in splits [(train_id, test_id)]
     """
     if folds == 1:
-        train_indices, val_indices = train_test_split(list(range(len(dataset))), test_size=test_size,
-                                                      stratify=dataset[y_label])
-        n_splits = [(train_indices, val_indices)]
+        train_indices, test_indices = train_test_split(list(range(len(dataset))), test_size=0.2,
+                                                       stratify=dataset[y_label])
+        n_splits = [(train_indices, test_indices)]
     else:
         skf = StratifiedKFold(n_splits=folds)
         n_splits = list(skf.split(X=dataset[x_label], y=dataset[y_label]))
-    return n_splits
+
+    result = []
+    for train_indices, test_indices in n_splits:
+        train_ids, val_ids = train_test_split(train_indices, test_size=0.25)
+        result.append((train_ids, val_ids, test_indices))
+
+    return result
 
 
 def log_splits(n_splits, logger):

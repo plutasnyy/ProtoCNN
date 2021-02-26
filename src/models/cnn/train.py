@@ -1,19 +1,19 @@
 import os
+
+os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 from configparser import ConfigParser
 from copy import deepcopy
 from pathlib import Path
 
 import click
 import pandas as pd
-import torch
 from easydict import EasyDict
-
-os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from models.cnn.dataframe_dataset import DataFrameDataset
 from models.cnn.lit_module import CNNLitModule
-from utils import get_n_splits, log_splits, get_pad_to_min_len_fn
+from utils import get_n_splits, log_splits
 
+import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import CometLogger
@@ -30,13 +30,12 @@ import numpy as np
 @click.option('-n', '--name', required=True, type=str)
 @click.option('-ds', '--data-set', required=True,
               type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']))
-@click.option('-m', '--model', default='distilbert', type=click.Choice(['distilbert']))
-@click.option('-l', '--length', default=None, type=int, help='If none use value from configs')
 @click.option('--logger/--no-logger', default=True)
 @click.option('-e', '--epoch', default=4, type=int)
 @click.option('-f', '--fold', default=1, type=int)
 @click.option('--lr', default=2e-5, type=float)
 @click.option('--find-lr', default=False, is_flag=True)
+@click.option('--test', default=False, is_flag=True)
 @click.option('--seed', default=0, type=int)
 @click.option('-bs', '--batch-size', default=32, type=int)
 @click.option('-fdr', '--fast-dev-run', default=False, type=int)
@@ -62,12 +61,11 @@ def train(**params):
     base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
-    n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', test_size=0.2, folds=params.fold)
-
+    n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
     log_splits(n_splits, logger)
 
     best_models_scores = []
-    for fold_id, (train_index, test_index) in enumerate(n_splits):
+    for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
         i = str(fold_id)
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
@@ -77,10 +75,15 @@ def train(**params):
 
         callbacks = deepcopy(base_callbacks) + [model_checkpoint]
 
-        min_len_padding = get_pad_to_min_len_fn(min_length=10)
-        train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[test_index]
+        if params.test:
+            print('TESTING')
+            train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
+        else:
+            print('VALIDATING')
+            train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
+
         TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
-                          batch_first=True, lower=True, postprocessing=min_len_padding)
+                          batch_first=True, lower=True)
         LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
 
         train_dataset = DataFrameDataset(train_df, {
