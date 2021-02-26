@@ -31,7 +31,7 @@ import numpy as np
 @click.option('-ds', '--data-set', required=True,
               type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']))
 @click.option('--logger/--no-logger', default=True)
-@click.option('-e', '--epoch', default=4, type=int)
+@click.option('-e', '--epoch', default=30, type=int)
 @click.option('-f', '--fold', default=1, type=int)
 @click.option('--lr', default=2e-5, type=float)
 @click.option('--find-lr', default=False, is_flag=True)

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn import BCEWithLogitsLoss
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 
 
 class ConvolutionalBlock(nn.Module):
@@ -82,6 +82,6 @@ class CNNLitModule(pl.LightningModule):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8)
         return {
             'optimizer': optimizer,
-            'lr_scheduler': StepLR(optimizer, step_size=1, gamma=0.1),
+            'lr_scheduler': ReduceLROnPlateau(optimizer, patience=3, factor=0.1, mode='min', min_lr=1e-6),
             'monitor': f'val_loss_{self.fold_id}'
         }
