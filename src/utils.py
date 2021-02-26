@@ -11,7 +11,7 @@ def call_click_wrapper(f, run_params: dict):
     list_of_params = []
     for k, v in run_params.items():
         list_of_params.extend([k, v])
-    f(list_of_params)
+    f(list_of_params, standalone_mode=False)
 
 
 def get_n_splits(dataset, x_label, y_label, folds):
