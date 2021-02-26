@@ -37,7 +37,7 @@ class CNNLitModule(pl.LightningModule):
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, 128, kernel_size=3)
         self.conv2 = ConvolutionalBlock(128, 256, kernel_size=3)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.3)
         self.fc1 = nn.Linear(256, 1)
 
         if self.static:
@@ -77,7 +77,7 @@ class CNNLitModule(pl.LightningModule):
                  on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8)
+        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         return {
             'optimizer': optimizer,
             'lr_scheduler': ReduceLROnPlateau(optimizer, patience=2, factor=0.5, mode='min', min_lr=1e-6),
