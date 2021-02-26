@@ -35,8 +35,8 @@ class CNNLitModule(pl.LightningModule):
         self.learning_rate = lr
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, 128, kernel_size=5)
-        self.conv2 = ConvolutionalBlock(128, 256, kernel_size=5, stride=2)
+        self.conv1 = ConvolutionalBlock(300, 128, kernel_size=3)
+        self.conv2 = ConvolutionalBlock(128, 256, kernel_size=3, stride=2)
         self.dropout = nn.Dropout(0.2)
         self.fc1 = nn.Linear(256, 1)
 
