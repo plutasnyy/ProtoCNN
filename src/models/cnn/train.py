@@ -115,7 +115,7 @@ def train(**params):
             deterministic=True,
             fast_dev_run=params.fast_dev_run,
         )
-
+        trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
         trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 
         for absolute_path in model_checkpoint.best_k_models.keys():
