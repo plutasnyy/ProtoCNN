@@ -113,7 +113,7 @@ def train(**params):
             callbacks=callbacks,
             gpus=1,
             deterministic=True,
-            fast_dev_run=params.fast_dev_run
+            fast_dev_run=params.fast_dev_run,
         )
 
         trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
