@@ -65,10 +65,10 @@ def train(**params):
         i = str(fold_id)
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-            save_weights_only=True, save_top_k=10,
+            save_weights_only=True, save_top_k=3,
             monitor=f'val_acc_{i}', period=1
         )
-        early_stop = EarlyStopping(monitor=f'val_loss_{i}', min_delta=0.01, patience=5, verbose=True, mode='min')
+        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min')
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
         if params.test:
