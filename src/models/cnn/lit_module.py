@@ -35,10 +35,9 @@ class CNNLitModule(pl.LightningModule):
         self.learning_rate = lr
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, 128, kernel_size=3)
-        self.conv2 = ConvolutionalBlock(128, 256, kernel_size=3)
+        self.conv1 = ConvolutionalBlock(300, 128, kernel_size=5)
         self.dropout = nn.Dropout(0.3)
-        self.fc1 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(128, 1)
 
         if self.static:
             self.embedding.weight.requires_grad = False
@@ -50,7 +49,6 @@ class CNNLitModule(pl.LightningModule):
     def forward(self, x):
         x = self.embedding(x).permute((0, 2, 1))
         x = self.conv1(x)
-        x = self.conv2(x)
         x = F.max_pool1d(x, x.size(2))
         x = self.dropout(x)
         x = x.view(x.size(0), -1)
