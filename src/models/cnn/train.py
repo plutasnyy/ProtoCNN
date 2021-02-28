@@ -68,7 +68,7 @@ def train(**params):
             save_weights_only=True, save_top_k=3,
             monitor=f'val_acc_{i}', period=1
         )
-        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', delta=0.005)
+        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', min_delta=0.005)
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
         if params.test:
