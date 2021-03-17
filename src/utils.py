@@ -21,8 +21,7 @@ def call_click_wrapper(f, run_params: dict):
 def get_n_splits(dataset, x_label, y_label, folds):
     """
     split with ratio train/val/test 60/20/20
-    :param folds: if >
-    :return: list of indices in splits [(train_id, test_id)]
+    :return: list of indices in splits [(train_id, val_id, test_id)]
     """
     if folds == 1:
         train_indices, test_indices = train_test_split(list(range(len(dataset))), test_size=0.2,

@@ -9,7 +9,23 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from models.conv_block import ConvolutionalBlock
 
 
-class CNNLitModule(pl.LightningModule):
+class PrototypeLayer(nn.Module):
+    def __init__(self, channels_in, number_of_prototypes, kernel_size):
+        super().__init__()
+        self.prototypes = nn.Parameter(torch.rand([number_of_prototypes, channels_in, kernel_size]), requires_grad=True)
+        self.ones = nn.Parameter(torch.ones([number_of_prototypes, channels_in, kernel_size]), requires_grad=False)
+
+    def __call__(self, x):
+        x2 = F.conv1d(input=x ** 2, weight=self.ones)
+        p2 = torch.sum(self.prototypes ** 2, dim=(1, 2)).view(-1, 1)
+        xp = F.conv1d(input=x, weight=self.prototypes)
+
+        distances = F.relu(x2 - 2 * xp + p2)
+
+        return distances
+
+
+class ProtoConvLitModule(pl.LightningModule):
 
     def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -21,8 +37,8 @@ class CNNLitModule(pl.LightningModule):
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3)
-        self.dropout = nn.Dropout(0.3)
-        self.fc1 = nn.Linear(32, 1)
+        self.prototype = PrototypeLayer(channels_in=32, number_of_prototypes=10, kernel_size=5)
+        self.fc1 = nn.Linear(10, 1, bias=False)
 
         if self.static:
             self.embedding.weight.requires_grad = False
@@ -34,9 +50,10 @@ class CNNLitModule(pl.LightningModule):
     def forward(self, x):
         x = self.embedding(x).permute((0, 2, 1))
         x = self.conv1(x)
-        x = F.max_pool1d(x, x.size(2))
-        x = self.dropout(x)
+        x = self.prototype(x)
+        x = -F.max_pool1d(-x, x.size(2))
         x = x.view(x.size(0), -1)
+        x = -x # dist to similarity
         logit = self.fc1(x)
         return logit
 

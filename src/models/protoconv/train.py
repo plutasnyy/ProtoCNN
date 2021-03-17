@@ -1,6 +1,7 @@
 import os
 
 from models.dataframe_dataset import DataFrameDataset
+from models.protoconv.lit_module import ProtoConvLitModule
 
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 from configparser import ConfigParser
@@ -11,7 +12,6 @@ import click
 import pandas as pd
 from easydict import EasyDict
 
-from models.cnn.lit_module import CNNLitModule
 from utils import get_n_splits, log_splits
 
 import torch
@@ -103,8 +103,8 @@ def train(**params):
         TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=params.cache))
         LABEL.build_vocab(train_dataset.label)
 
-        model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
-                             fold_id=fold_id)
+        model = ProtoConvLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
+                                   fold_id=fold_id)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
 
         trainer = Trainer(
