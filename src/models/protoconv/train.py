@@ -1,9 +1,7 @@
 import os
 
-from models.dataframe_dataset import DataFrameDataset
-from models.protoconv.lit_module import ProtoConvLitModule
-
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
+
 from configparser import ConfigParser
 from copy import deepcopy
 from pathlib import Path
@@ -23,8 +21,38 @@ from pytorch_lightning.loggers.base import DummyLogger
 from torchtext import data
 from torchtext.data import BucketIterator
 from torchtext.vocab import FastText
+
+from models.dataframe_dataset import DataFrameDataset
+from models.protoconv.lit_module import ProtoConvLitModule
+
 import numpy as np
 
+def get_dataset(train_df, valid_df, batch_size, cache):
+    TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
+                      batch_first=True, lower=True)
+    LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
+
+    train_dataset = DataFrameDataset(train_df, {
+        'text': TEXT,
+        'label': LABEL
+    })
+
+    val_dataset = DataFrameDataset(valid_df, {
+        'text': TEXT,
+        'label': LABEL
+    })
+
+    train_loader, val_loader = BucketIterator.splits(
+        (train_dataset, val_dataset),
+        batch_size=batch_size,
+        sort_key=lambda x: len(x.text),
+        device='cuda' if torch.cuda.is_available() else 'cpu'
+    )
+
+    TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=cache))
+    LABEL.build_vocab(train_dataset.label)
+
+    return TEXT, LABEL, train_loader, val_loader
 
 @click.command()
 @click.option('-n', '--name', required=True, type=str)
@@ -79,29 +107,7 @@ def train(**params):
             print('VALIDATING')
             train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
 
-        TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
-                          batch_first=True, lower=True)
-        LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
-
-        train_dataset = DataFrameDataset(train_df, {
-            'text': TEXT,
-            'label': LABEL
-        })
-
-        val_dataset = DataFrameDataset(valid_df, {
-            'text': TEXT,
-            'label': LABEL
-        })
-
-        train_loader, val_loader = BucketIterator.splits(
-            (train_dataset, val_dataset),
-            batch_size=params.batch_size,
-            sort_key=lambda x: len(x.text),
-            device='cuda' if torch.cuda.is_available() else 'cpu'
-        )
-
-        TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=params.cache))
-        LABEL.build_vocab(train_dataset.label)
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache)
 
         model = ProtoConvLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
                                    fold_id=fold_id)

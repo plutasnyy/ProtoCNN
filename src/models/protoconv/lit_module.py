@@ -13,6 +13,8 @@ class PrototypeLayer(nn.Module):
     def __init__(self, channels_in, number_of_prototypes, kernel_size):
         super().__init__()
         self.prototypes = nn.Parameter(torch.rand([number_of_prototypes, channels_in, kernel_size]), requires_grad=True)
+        torch.nn.init.xavier_uniform(self.prototypes.data)
+
         self.ones = nn.Parameter(torch.ones([number_of_prototypes, channels_in, kernel_size]), requires_grad=False)
 
     def __call__(self, x):
@@ -37,8 +39,8 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3)
-        self.prototype = PrototypeLayer(channels_in=32, number_of_prototypes=10, kernel_size=5)
-        self.fc1 = nn.Linear(10, 1, bias=False)
+        self.prototype = PrototypeLayer(channels_in=32, number_of_prototypes=32, kernel_size=5)
+        self.fc1 = nn.Linear(32, 1, bias=False)
 
         if self.static:
             self.embedding.weight.requires_grad = False
@@ -47,9 +49,13 @@ class ProtoConvLitModule(pl.LightningModule):
         self.valid_acc = pl.metrics.Accuracy()
         self.loss = BCEWithLogitsLoss()
 
-    def forward(self, x):
+    def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
         x = self.conv1(x)
+        return x
+
+    def forward(self, x):
+        x = self.get_features(x)
         x = self.prototype(x)
         x = -F.max_pool1d(-x, x.size(2))
         x = x.view(x.size(0), -1)
