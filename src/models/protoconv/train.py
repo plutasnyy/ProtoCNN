@@ -107,7 +107,7 @@ def train(**params):
             print('VALIDATING')
             train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
 
-        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=0)
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
 
         model = ProtoConvLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
                                    fold_id=fold_id)

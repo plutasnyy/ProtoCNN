@@ -15,12 +15,11 @@ from models.protoconv.prototype_layer import PrototypeLayer
 class ProtoConvLitModule(pl.LightningModule):
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=1, *args, **kwargs):
+                 project_prototypes_every_n=3, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
-        self.static = static_embedding
         self.learning_rate = lr
         self.project_prototypes_every_n = project_prototypes_every_n
 
@@ -30,16 +29,12 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes = PrototypeLayer(channels_in=32, number_of_prototypes=self.number_of_prototypes)
         self.fc1 = nn.Linear(16, 1, bias=False)
 
-        if self.static:
+        if static_embedding:
             self.embedding.weight.requires_grad = False
 
         self.train_acc = pl.metrics.Accuracy()
         self.valid_acc = pl.metrics.Accuracy()
         self.loss = BCEWithLogitsLoss()
-
-        self.projected_prototypes = torch.zeros_like(self.prototypes.prototypes)
-        self.min_distances_prototype_example = torch.full([self.number_of_prototypes], fill_value=float('inf'))
-        self.min_distances_prototype_example[0] = float('-inf')
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -57,6 +52,13 @@ class ProtoConvLitModule(pl.LightningModule):
             PrototypeDetailPrediction = namedtuple('PrototypeDetailPrediction', 'latent_space distances')
             return PrototypeDetailPrediction(latent_space, distances)
         return logits
+
+    def on_train_epoch_start(self, *args, **kwargs):
+        if self._is_projection_prototype_epoch():
+            self.projected_prototypes = torch.zeros_like(self.prototypes.prototypes, device=self.device)
+            self.min_distances_prototype_example = torch.full([self.number_of_prototypes], fill_value=float('inf'),
+                                                              device=self.device)
+            self.min_distances_prototype_example[0] = float('-inf')
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():
@@ -95,11 +97,9 @@ class ProtoConvLitModule(pl.LightningModule):
                 self.min_distances_prototype_example[update_indexes] = best_distances[update_indexes]
                 self.projected_prototypes[update_indexes] = best_latents_to_prototype[update_indexes]  # [16,32,1]
 
-    def training_epoch_end(self, *args, **kwargs):
+    def on_train_epoch_end(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(torch.tensor(self.projected_prototypes))
-            self.projected_prototypes = torch.zeros_like(self.prototypes.prototypes)
-            self.min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'))
 
     def validation_step(self, batch, batch_nb):
         outputs = self(batch.text)
