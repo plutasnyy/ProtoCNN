@@ -27,7 +27,7 @@ from models.protoconv.lit_module import ProtoConvLitModule
 
 import numpy as np
 
-def get_dataset(train_df, valid_df, batch_size, cache):
+def get_dataset(train_df, valid_df, batch_size, cache, gpus=1):
     TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
                       batch_first=True, lower=True)
     LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
@@ -46,7 +46,7 @@ def get_dataset(train_df, valid_df, batch_size, cache):
         (train_dataset, val_dataset),
         batch_size=batch_size,
         sort_key=lambda x: len(x.text),
-        device='cuda' if torch.cuda.is_available() else 'cpu'
+        device='cuda' if torch.cuda.is_available() and gpus else 'cpu'
     )
 
     TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=cache))
@@ -107,7 +107,7 @@ def train(**params):
             print('VALIDATING')
             train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
 
-        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache)
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=0)
 
         model = ProtoConvLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
                                    fold_id=fold_id)
