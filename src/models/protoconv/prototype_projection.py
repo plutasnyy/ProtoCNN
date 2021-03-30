@@ -8,9 +8,9 @@ class PrototypeProjection:
     Class responsible for holding and updating state during projection prototype epoch
     """
 
-    def __init__(self, number_of_prototypes, latent_size):
-        self.number_of_prototypes = number_of_prototypes
-        self.latent_size = latent_size
+    def __init__(self, prototype_shape):
+        self.prototype_shape = prototype_shape
+        self.number_of_prototypes = prototype_shape[0]
 
     def update(self, predictions: PrototypeDetailPrediction):
         """

@@ -6,13 +6,12 @@ LossesWrapper = namedtuple('LossesWrapper', 'loss cross_entropy clustering_loss 
 
 class PrototypeRepresentation:
     def __init__(self, best_distance, distances, X):
-        self.best_distance = best_distance
-        self.distances = distances
-        self.similarity = -best_distance
+        self.best_patch_distance = best_distance
+        self.patch_distances = distances
         self.X = X
 
     def __lt__(self, other):
-        return self.similarity < other.similarity  # max-heap
+        return self.best_patch_distance > other.best_patch_distance  # max-heap
 
     def __repr__(self):
-        return f'PE(dist:{self.best_distance})'
+        return f'PE(dist:{self.best_patch_distance})'

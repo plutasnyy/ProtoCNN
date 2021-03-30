@@ -19,8 +19,9 @@ class ProtoConvLitModule(pl.LightningModule):
     }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=5, sim_func='log', separation_threshold=10, *args, **kwargs):
+                 project_prototypes_every_n=4, sim_func='log', separation_threshold=10, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.save_hyperparameters()
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
@@ -29,13 +30,14 @@ class ProtoConvLitModule(pl.LightningModule):
         self.sim_func = sim_func
         self.separation_threshold = separation_threshold
 
-        self.number_of_prototypes: int = 16
+        self.number_of_prototypes: int = 8
+        self.latent_size: int = 16
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3, padding=1)
-        self.prototypes = PrototypeLayer(channels_in=32, number_of_prototypes=self.number_of_prototypes)
+        self.conv1 = ConvolutionalBlock(300, self.latent_size, kernel_size=7, padding=0, padding_mode="reflect")
+        self.prototypes = PrototypeLayer(channels_in=self.latent_size, number_of_prototypes=self.number_of_prototypes)
         self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
-        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.number_of_prototypes, 32)
+        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
         if static_embedding:
             self.embedding.weight.requires_grad = False

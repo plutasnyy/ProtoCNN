@@ -7,6 +7,8 @@ class TransformerLitModule(pl.LightningModule):
 
     def __init__(self, model, tokenizer, lr, fold_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.save_hyperparameters()
+
         self.model = model
         self.tokenizer = tokenizer
         self.learning_rate = lr

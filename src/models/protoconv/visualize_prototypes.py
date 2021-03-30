@@ -6,15 +6,13 @@ from io import BytesIO
 
 import click
 import comet_ml
-import numpy as np
+import cv2
 import pandas as pd
 import torch
-import torch.nn.functional as F
-from IPython.core.display import display, HTML
 from easydict import EasyDict
 
 from models.protoconv.lit_module import ProtoConvLitModule
-from models.protoconv.return_wrappers import PrototypeRepresentation
+from models.protoconv.return_wrappers import PrototypeRepresentation, PrototypeDetailPrediction
 from models.protoconv.train import get_dataset
 
 
@@ -22,8 +20,12 @@ def html_escape(text):
     return html.escape(text)
 
 
+def local(x):
+    return x.detach().cpu().numpy()
+
+
 @click.command()
-@click.option('--experiment', required=True, type=str, help='For example ce132011516346c99185d139fb23c70c')
+@click.option('--experiment', required=True, type=str, help='For example 90b50f0dc0e54b9e89ffab66db34db10')
 @click.option('--weights-path', required=True, type=str, help='For example epoch=25-val_mae=8.2030.ckpt')
 @click.option('--fold', required=True, type=int)
 @click.option('-k', required=True, type=int, help='Number of most similar examples to prototype')
@@ -45,57 +47,71 @@ def visualize(experiment, weights_path, fold, k):
 
     train_index = literal_eval(kfold_split['train_indices'])
     val_index = literal_eval(kfold_split['val_indices'])
+    test_index = literal_eval(kfold_split['test_indices'])
 
     df_dataset = pd.read_csv(f'data/{dataset}/data.csv')
-    train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
+    train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
     TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, batch_size=1, cache=None)
-    model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path, vocab_size=len(TEXT.vocab),
-                                                    embedding_dim=TEXT.vocab.vectors.shape[1], lr=1, fold_id=fold)
+    model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path)
+
     model.eval()
     model.cuda()
-    n_prototypes = model.prototype.prototypes.shape[0]
+    n_prototypes = model.prototypes.prototypes.shape[0]
 
     heaps = [[] for _ in range(n_prototypes)]
 
     with torch.no_grad():
         for X, batch_id in train_loader:
-            temp = model.embedding(X).permute((0, 2, 1))
-            temp = model.conv1(temp)
-            temp = model.prototype(temp)
-            prototypes_distances = temp.squeeze(0).detach().cpu().numpy()  # [Prototype, len(X)-4]
-            temp = -F.max_pool1d(-temp, temp.size(2))
-            best_distances = temp.view(temp.size(0), -1).squeeze(0).detach().cpu().numpy()  # [Prototype]
+            outputs: PrototypeDetailPrediction = model(X)
 
-            for i, (best_dist, dists_in_prot) in enumerate(zip(best_distances, prototypes_distances)):
-                prototype_repr = PrototypeRepresentation(best_dist, dists_in_prot, X[0].detach().cpu().numpy())
+            for i in range(n_prototypes):
+                prototype_repr = PrototypeRepresentation(
+                    float(local(outputs.min_distances.squeeze(0)[i])),
+                    local(outputs.distances.squeeze(0)[i]),
+                    local(X.squeeze(0))
+                )
+
                 if len(heaps[i]) < k:
                     heapq.heappush(heaps[i], prototype_repr)
                 else:
                     heapq.heappushpop(heaps[i], prototype_repr)
 
-    result = ''
-    for i in range(0, len(heaps)):
-        # print('-' * 10, i, '-' * 10)
-        for p in heapq.nlargest(3, heaps[i]):
-            # print('Best distance:', p.best_distance)
-            words = [TEXT.vocab.itos[j] for j in list(p.X)]
+    lines = []
+    separator = '-' * 15
+    fc_weights = local(model.fc1.weight.squeeze(0))
 
-            max_d = max(p.distances)
-            min_d = min(p.distances)
-            weights = [max_d] + list(p.distances) + [max_d]
+    for prototype_id in range(n_prototypes):
+        prototype_weight = round(float(fc_weights[prototype_id]), 4)
+        lines.append(f'{separator} <b>Prototype {prototype_id + 1}</b>, weight {prototype_weight} {separator}')
 
-            weights = list(1 - (np.array(weights) - min_d) / (max_d - min_d))
-            highlighted_text = []
-            for word, weight in zip(words, weights):
-                highlighted_text.append(
-                    f'<span style="background-color:rgba(135,206,250,{str(weight)});">' + html_escape(word) + '</span>')
+        for example_id, example in enumerate(heapq.nlargest(3, heaps[prototype_id])):
+            best_sim = model.dist_to_sim['log'](torch.tensor(example.best_patch_distance)).item()
+            best_sim_round = round(float(best_sim), 4)
+            best_dist_round = round(float(example.best_patch_distance), 4)
+            lines.append(f'Example {example_id + 1}, best distance {best_dist_round} (similarity {best_sim_round})')
 
-            highlighted_text = ' '.join(highlighted_text)
-            result += highlighted_text + '\n'
+            words = [TEXT.vocab.itos[j] for j in list(example.X)]
 
-    with open("filename.html", "w") as f:
-        f.write(result)
+            similarities = model.dist_to_sim['log'](torch.tensor(example.patch_distances)).numpy()
+            similarities_scaled = cv2.resize(similarities, dsize=(len(words)), interpolation=cv2.INTER_CUBIC)
+            min_d, max_d = min(similarities_scaled), max(similarities_scaled)
+            similarity_weight = (similarities_scaled - min_d) / (max_d - min_d)
+
+            highlighted_example = []
+            for word, scaled_sim in zip(words, list(similarity_weight)):
+                highlighted_example.append(
+                    f'<span style="background-color:rgba(135,206,250,{str(scaled_sim)});"> {html_escape(word)} </span>')
+            highlighted_example = ' '.join(highlighted_example)
+
+            lines.append(highlighted_example)
+            lines.append('')
+
+    text = '<br>'.join(lines)
+
+    with open("amazon_log_7_train_log_INTER_CUBIC.html", "w") as f:
+        f.write(text)
+
 
 if __name__ == '__main__':
     visualize()

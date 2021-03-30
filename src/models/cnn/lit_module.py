@@ -13,6 +13,8 @@ class CNNLitModule(pl.LightningModule):
 
     def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.save_hyperparameters()
+
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
