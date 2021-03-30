@@ -1,5 +1,3 @@
-from collections import namedtuple
-
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -10,24 +8,34 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from models.conv_block import ConvolutionalBlock
 from models.protoconv.prototype_layer import PrototypeLayer
+from models.protoconv.prototype_projection import PrototypeProjection
+from models.protoconv.return_wrappers import LossesWrapper, PrototypeDetailPrediction
 
 
 class ProtoConvLitModule(pl.LightningModule):
+    dist_to_sim = {
+        'linear': lambda x: -x,
+        'log': lambda x: torch.log((x + 1) / (x + 1e-4))
+    }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=3, *args, **kwargs):
+                 project_prototypes_every_n=0, sim_func='linear', separation_threshold=10, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
         self.learning_rate = lr
         self.project_prototypes_every_n = project_prototypes_every_n
+        self.sim_func = sim_func
+        self.separation_threshold = separation_threshold
 
-        self.number_of_prototypes: int = 16
+        self.number_of_prototypes: int = 32
+
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3, padding=1)
         self.prototypes = PrototypeLayer(channels_in=32, number_of_prototypes=self.number_of_prototypes)
-        self.fc1 = nn.Linear(16, 1, bias=False)
+        self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
+        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.number_of_prototypes, 32)
 
         if static_embedding:
             self.embedding.weight.requires_grad = False
@@ -36,93 +44,108 @@ class ProtoConvLitModule(pl.LightningModule):
         self.valid_acc = pl.metrics.Accuracy()
         self.loss = BCEWithLogitsLoss()
 
+        self.last_train_losses = None
+
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
         x = self.conv1(x)
         return x
 
-    def forward(self, x, get_representation=False):
+    def forward(self, x):
         latent_space = self.get_features(x)
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
-        similarity = -min_dist  # dist to similarity
+        similarity = self.dist_to_sim[self.sim_func](min_dist)
         logits = self.fc1(similarity).squeeze(1)
-
-        if get_representation:
-            PrototypeDetailPrediction = namedtuple('PrototypeDetailPrediction', 'latent_space distances')
-            return PrototypeDetailPrediction(latent_space, distances)
-        return logits
+        return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
 
     def on_train_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
-            self.projected_prototypes = torch.zeros_like(self.prototypes.prototypes, device=self.device)
-            self.min_distances_prototype_example = torch.full([self.number_of_prototypes], fill_value=float('inf'),
-                                                              device=self.device)
-            self.min_distances_prototype_example[0] = float('-inf')
+            self.prototype_projection.reset(device=self.device)
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():
             self.project_prototypes(batch)
             loss = torch.tensor(.0, requires_grad=True)
+            losses = LossesWrapper(loss, 0, 0, 0, 0, 0) if self.last_train_losses is None else self.last_train_losses
         else:
-            outputs = self(batch.text)
-            loss = self.loss(outputs, batch.label)
-            preds = torch.round(torch.sigmoid(outputs))
+            losses = self.learning_step(batch, self.train_acc)
+            loss = losses.loss
+            self.last_train_losses = losses
 
-            self.log(f'train_loss_{self.fold_id}', loss, prog_bar=True)
-            self.log(f'train_acc_{self.fold_id}', self.train_acc(preds, batch.label), prog_bar=True,
-                     on_step=False, on_epoch=True)
+        self.log_all_metrics('train', losses)
         return {'loss': loss}
 
     def project_prototypes(self, batch):
-        # TODO consider only with specific class
-        # TODO consider removing the same prototypes
-
         self.eval()
         with torch.no_grad():
-            prediction = self(batch.text, get_representation=True)
-            for pred_id, label in enumerate(batch.label):
-                latent_space = prediction.latent_space[pred_id].squeeze(0)  # [32,115] [ latent_size, length]
-                distances = prediction.distances[pred_id].squeeze(0)  # [16,115]  [prototypes, distances]
-
-                assert distances.shape[1] == latent_space.shape[1]
-                best_distances_idx = distances.argmin(dim=1)
-                best_distances = distances[torch.arange(distances.shape[0]), best_distances_idx]
-                best_latents_to_prototype = latent_space.permute(1, 0)[best_distances_idx].unsqueeze(2)
-                # permute to [115, 32] for correct selecting representations, after selection [prototypes, 32, 1]
-
-                update_mask = best_distances < self.min_distances_prototype_example
-                update_indexes = torch.where(update_mask == 1)
-
-                self.min_distances_prototype_example[update_indexes] = best_distances[update_indexes]
-                self.projected_prototypes[update_indexes] = best_latents_to_prototype[update_indexes]  # [16,32,1]
+            prediction: PrototypeDetailPrediction = self(batch.text)
+            self.prototype_projection.update(prediction)
 
     def on_train_epoch_end(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
-            self.prototypes.prototypes.data.copy_(torch.tensor(self.projected_prototypes))
+            self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
 
     def validation_step(self, batch, batch_nb):
+        losses = self.learning_step(batch, self.valid_acc)
+        self.log_all_metrics('val', losses)
+
+    def learning_step(self, batch, acc_score):
         outputs = self(batch.text)
-        loss = self.loss(outputs, batch.label)
-        preds = torch.round(torch.sigmoid(outputs))
+        preds = torch.round(torch.sigmoid(outputs.logits))
 
-        self.log(f'val_loss_{self.fold_id}', loss, prog_bar=True)
-        self.log(f'val_acc_{self.fold_id}', self.valid_acc(preds, batch.label), prog_bar=True, on_step=False,
-                 on_epoch=True)
+        cross_entropy = self.loss(outputs.logits, batch.label)
+        clustering_loss = self.calculate_clustering_loss(outputs)
+        separation_loss = self.calculate_separation_loss(self.prototypes.prototypes, alpha=self.separation_threshold)
+        l1 = self.fc1.weight.norm(p=1)
+        loss = 1 * cross_entropy + 0 * clustering_loss + 0 * l1 + 0 * separation_loss
+        accuracy = acc_score(preds, batch.label)
 
-    def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
-        return {
-            'optimizer': optimizer,
-            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.1),
-            'monitor': f'val_loss_{self.fold_id}'
-        }
+        return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy)
 
-    def _is_projection_prototype_epoch(self):
-        return (self.current_epoch + 1) % self.project_prototypes_every_n == 0
+    def log_all_metrics(self, stage, losses: LossesWrapper):
+        self.log(f'{stage}_loss_{self.fold_id}', losses.loss, prog_bar=True)
+        self.log(f'{stage}_ce_{self.fold_id}', losses.cross_entropy, prog_bar=False)
+        self.log(f'{stage}_clst_{self.fold_id}', losses.clustering_loss, prog_bar=False)
+        self.log(f'{stage}_sep_{self.fold_id}', losses.separation_loss, prog_bar=False)
+        self.log(f'{stage}_l1_{self.fold_id}', losses.l1, prog_bar=False)
+        self.log(f'{stage}_acc_{self.fold_id}', losses.accuracy, prog_bar=True, on_step=False, on_epoch=True)
 
     @staticmethod
     def _min_pooling(x):
         x = -F.max_pool1d(-x, x.size(2))
         x = x.view(x.size(0), -1)
         return x
+
+    @staticmethod
+    def calculate_separation_loss(prototypes, alpha):  # [prototypes, latent_size, 1]
+        """
+        :param prototypes:
+        :param alpha: the threshold, after that higher distances are ignored: distance = max(distance,alpha)
+        """
+        # TODO distance is not squared, where clustering loss uses squared distances
+        prot = prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
+        distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
+        max_value = torch.max(distances_matrix) + 1
+        distances_matrix_no_zeros = distances_matrix + torch.eye(prototypes.shape[0]).to(prototypes.device) * max_value
+        min_distances, _ = torch.min(distances_matrix_no_zeros, dim=1)
+        mean_separation_distance = torch.mean(min_distances)
+        clip_dist = torch.clip(mean_separation_distance, max=alpha)
+        loss = -clip_dist
+        return loss
+
+    @staticmethod
+    def calculate_clustering_loss(outputs: PrototypeDetailPrediction):
+        cluster_cost = torch.mean(outputs.min_distances)
+        return cluster_cost
+
+    def _is_projection_prototype_epoch(self):
+        return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
+
+    def configure_optimizers(self):
+        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=10, factor=0.1),
+            'monitor': f'val_loss_{self.fold_id}'
+        }

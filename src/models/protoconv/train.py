@@ -27,6 +27,7 @@ from models.protoconv.lit_module import ProtoConvLitModule
 
 import numpy as np
 
+
 def get_dataset(train_df, valid_df, batch_size, cache, gpus=1):
     TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
                       batch_first=True, lower=True)
@@ -53,6 +54,7 @@ def get_dataset(train_df, valid_df, batch_size, cache, gpus=1):
     LABEL.build_vocab(train_dataset.label)
 
     return TEXT, LABEL, train_loader, val_loader
+
 
 @click.command()
 @click.option('-n', '--name', required=True, type=str)
@@ -94,10 +96,9 @@ def train(**params):
         i = str(fold_id)
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-            save_weights_only=True, save_top_k=3,
-            monitor=f'val_acc_{i}', period=1
+            save_weights_only=False, save_top_k=3, monitor=f'val_acc_{i}', period=1
         )
-        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', min_delta=0.005)
+        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=100, verbose=True, mode='min', min_delta=0.005)
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
         if params.test:
