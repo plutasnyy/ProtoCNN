@@ -11,9 +11,8 @@ import pandas as pd
 import torch
 from easydict import EasyDict
 
-from models.protoconv.lit_module import ProtoConvLitModule
-from models.protoconv.return_wrappers import PrototypeRepresentation, PrototypeDetailPrediction
-from models.protoconv.train import get_dataset
+from models.embeddings_dataset_utils import get_dataset
+from models.protoconv.return_wrappers import PrototypeRepresentation
 
 
 def html_escape(text):
@@ -53,16 +52,24 @@ def visualize(experiment, weights_path, fold, k):
     train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
     TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, batch_size=1, cache=None)
-    model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path)
 
+    from models.protoconv.lit_module import ProtoConvLitModule
+    model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path)
+    visualize_model(model, train_loader, k, 'prototype_visualization.html', TEXT.vocab.itos)
+
+
+def visualize_model(model, data_loader, k_most_similar, file_name, vocab_int_to_string):
     model.eval()
     model.cuda()
+
+    data_loader.batch_size = 1
     n_prototypes = model.prototypes.prototypes.shape[0]
 
     heaps = [[] for _ in range(n_prototypes)]
 
+    from models.protoconv.return_wrappers import PrototypeDetailPrediction
     with torch.no_grad():
-        for X, batch_id in train_loader:
+        for X, batch_id in data_loader:
             outputs: PrototypeDetailPrediction = model(X)
 
             for i in range(n_prototypes):
@@ -72,7 +79,7 @@ def visualize(experiment, weights_path, fold, k):
                     local(X.squeeze(0))
                 )
 
-                if len(heaps[i]) < k:
+                if len(heaps[i]) < k_most_similar:
                     heapq.heappush(heaps[i], prototype_repr)
                 else:
                     heapq.heappushpop(heaps[i], prototype_repr)
@@ -91,12 +98,12 @@ def visualize(experiment, weights_path, fold, k):
             best_dist_round = round(float(example.best_patch_distance), 4)
             lines.append(f'Example {example_id + 1}, best distance {best_dist_round} (similarity {best_sim_round})')
 
-            words = [TEXT.vocab.itos[j] for j in list(example.X)]
+            words = [vocab_int_to_string[j] for j in list(example.X)]
 
             similarities = model.dist_to_sim['log'](torch.tensor(example.patch_distances)).numpy()
-            similarities_scaled = cv2.resize(similarities, dsize=(len(words)), interpolation=cv2.INTER_CUBIC)
+            similarities_scaled = cv2.resize(similarities, dsize=(1, len(words)), interpolation=cv2.INTER_LINEAR)
             min_d, max_d = min(similarities_scaled), max(similarities_scaled)
-            similarity_weight = (similarities_scaled - min_d) / (max_d - min_d)
+            similarity_weight = ((similarities_scaled - min_d) / (max_d - min_d)).squeeze(1)
 
             highlighted_example = []
             for word, scaled_sim in zip(words, list(similarity_weight)):
@@ -109,7 +116,7 @@ def visualize(experiment, weights_path, fold, k):
 
     text = '<br>'.join(lines)
 
-    with open("amazon_log_7_train_log_INTER_CUBIC.html", "w") as f:
+    with open(file_name, 'w') as f:
         f.write(text)
 
 

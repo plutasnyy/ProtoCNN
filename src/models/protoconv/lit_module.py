@@ -19,9 +19,12 @@ class ProtoConvLitModule(pl.LightningModule):
     }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=4, sim_func='log', separation_threshold=10, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+                 project_prototypes_every_n=4, sim_func='log', separation_threshold=10, number_of_prototypes=16,
+                 latent_size=32, sep_loss_weight=0, cls_loss_weight=0, *args, **kwargs):
+        super().__init__()
+
         self.save_hyperparameters()
+
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
@@ -29,12 +32,13 @@ class ProtoConvLitModule(pl.LightningModule):
         self.project_prototypes_every_n = project_prototypes_every_n
         self.sim_func = sim_func
         self.separation_threshold = separation_threshold
-
-        self.number_of_prototypes: int = 8
-        self.latent_size: int = 16
+        self.sep_loss_weight = sep_loss_weight
+        self.cls_loss_weight = cls_loss_weight
+        self.number_of_prototypes: int = number_of_prototypes
+        self.latent_size: int = latent_size
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, self.latent_size, kernel_size=7, padding=0, padding_mode="reflect")
+        self.conv1 = ConvolutionalBlock(300, self.latent_size, kernel_size=3, padding=0, padding_mode="reflect")
         self.prototypes = PrototypeLayer(channels_in=self.latent_size, number_of_prototypes=self.number_of_prototypes)
         self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
@@ -100,7 +104,7 @@ class ProtoConvLitModule(pl.LightningModule):
         clustering_loss = self.calculate_clustering_loss(outputs)
         separation_loss = self.calculate_separation_loss(self.prototypes.prototypes, alpha=self.separation_threshold)
         l1 = self.fc1.weight.norm(p=1)
-        loss = cross_entropy + 0.05 * clustering_loss + 1e-2 * l1 + 0.05 * separation_loss
+        loss = cross_entropy + self.cls_loss_weight * clustering_loss + self.sep_loss_weight * separation_loss + 1e-2 * l1
         accuracy = acc_score(preds, batch.label)
 
         return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy)

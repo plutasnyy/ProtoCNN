@@ -35,5 +35,5 @@ class PrototypeProjection:
         return torch.tensor(self._projected_prototypes)
 
     def reset(self, device):
-        self._projected_prototypes = torch.zeros([self.number_of_prototypes, self.latent_size, 1], device=device)
+        self._projected_prototypes = torch.zeros(self.prototype_shape, device=device)
         self._min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'), device=device)
