@@ -19,7 +19,7 @@ class ProtoConvLitModule(pl.LightningModule):
     }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=0, sim_func='linear', separation_threshold=10, *args, **kwargs):
+                 project_prototypes_every_n=5, sim_func='log', separation_threshold=10, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fold_id = fold_id
         self.vocab_size = vocab_size
@@ -29,7 +29,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.sim_func = sim_func
         self.separation_threshold = separation_threshold
 
-        self.number_of_prototypes: int = 32
+        self.number_of_prototypes: int = 16
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3, padding=1)
@@ -98,7 +98,7 @@ class ProtoConvLitModule(pl.LightningModule):
         clustering_loss = self.calculate_clustering_loss(outputs)
         separation_loss = self.calculate_separation_loss(self.prototypes.prototypes, alpha=self.separation_threshold)
         l1 = self.fc1.weight.norm(p=1)
-        loss = 1 * cross_entropy + 0 * clustering_loss + 0 * l1 + 0 * separation_loss
+        loss = cross_entropy + 0.05 * clustering_loss + 1e-2 * l1 + 0.05 * separation_loss
         accuracy = acc_score(preds, batch.label)
 
         return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy)
@@ -143,7 +143,7 @@ class ProtoConvLitModule(pl.LightningModule):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
+        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8)
         return {
             'optimizer': optimizer,
             'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=10, factor=0.1),

@@ -1,6 +1,6 @@
 import os
 
-from models.dataframe_dataset import DataFrameDataset
+from models.embeddings_dataset_utils import get_dataset
 
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 from configparser import ConfigParser
@@ -14,15 +14,11 @@ from easydict import EasyDict
 from models.cnn.lit_module import CNNLitModule
 from utils import get_n_splits, log_splits
 
-import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
-from torchtext import data
-from torchtext.data import BucketIterator
-from torchtext.vocab import FastText
 import numpy as np
 
 
@@ -72,36 +68,8 @@ def train(**params):
         early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', min_delta=0.005)
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
-        if params.test:
-            print('TESTING')
-            train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
-        else:
-            print('VALIDATING')
-            train_df, valid_df = df_dataset.iloc[train_index], df_dataset.iloc[val_index]
-
-        TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
-                          batch_first=True, lower=True)
-        LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
-
-        train_dataset = DataFrameDataset(train_df, {
-            'text': TEXT,
-            'label': LABEL
-        })
-
-        val_dataset = DataFrameDataset(valid_df, {
-            'text': TEXT,
-            'label': LABEL
-        })
-
-        train_loader, val_loader = BucketIterator.splits(
-            (train_dataset, val_dataset),
-            batch_size=params.batch_size,
-            sort_key=lambda x: len(x.text),
-            device='cuda' if torch.cuda.is_available() else 'cpu'
-        )
-
-        TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=params.cache))
-        LABEL.build_vocab(train_dataset.label)
+        train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
 
         model = CNNLitModule(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
                              fold_id=fold_id)
