@@ -55,14 +55,16 @@ def visualize(experiment, weights_path, fold, k):
 
     from models.protoconv.lit_module import ProtoConvLitModule
     model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path)
-    visualize_model(model, train_loader, k, 'prototype_visualization.html', TEXT.vocab.itos)
+    model.vocab_itos = TEXT.vocab.itos
+    visualize_model(model, train_loader, k, 'prototype_visualization.html')
 
 
-def visualize_model(model, data_loader, k_most_similar, file_name, vocab_int_to_string):
+def visualize_model(model, data_loader, k_most_similar, file_name):
     model.eval()
     model.cuda()
 
     data_loader.batch_size = 1
+    vocab_int_to_string = model.vocab_itos
     n_prototypes = model.prototypes.prototypes.shape[0]
 
     heaps = [[] for _ in range(n_prototypes)]

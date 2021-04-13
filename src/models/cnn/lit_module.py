@@ -7,11 +7,13 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from models.conv_block import ConvolutionalBlock
+from models.embeddings_dataset_utils import get_dataset
 
 
 class CNNLitModule(pl.LightningModule):
 
-    def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, *args, **kwargs):
+    def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, cnn_conv_filters=32, cnn_filter_size=3,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.save_hyperparameters()
 
@@ -20,11 +22,13 @@ class CNNLitModule(pl.LightningModule):
         self.embedding_dim = embedding_dim
         self.static = static
         self.learning_rate = lr
+        self.conv_filters = cnn_conv_filters
+        self.filter_size = cnn_filter_size
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, 32, kernel_size=3)
+        self.conv1 = ConvolutionalBlock(embedding_dim, self.conv_filters, kernel_size=self.filter_size)
         self.dropout = nn.Dropout(0.3)
-        self.fc1 = nn.Linear(32, 1)
+        self.fc1 = nn.Linear(self.conv_filters, 1)
 
         if self.static:
             self.embedding.weight.requires_grad = False
@@ -68,3 +72,11 @@ class CNNLitModule(pl.LightningModule):
             'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.1),
             'monitor': f'val_loss_{self.fold_id}'
         }
+
+    @classmethod
+    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
+                    fold_id=fold_id, **params)
+        model.embedding.weight.data.copy_(TEXT.vocab.vectors)
+        return model, train_loader, val_loader

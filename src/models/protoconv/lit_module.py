@@ -7,6 +7,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from models.conv_block import ConvolutionalBlock
+from models.embeddings_dataset_utils import get_dataset
 from models.protoconv.prototype_layer import PrototypeLayer
 from models.protoconv.prototype_projection import PrototypeProjection
 from models.protoconv.return_wrappers import LossesWrapper, PrototypeDetailPrediction
@@ -19,8 +20,9 @@ class ProtoConvLitModule(pl.LightningModule):
     }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 project_prototypes_every_n=4, sim_func='log', separation_threshold=10, number_of_prototypes=16,
-                 latent_size=32, sep_loss_weight=0, cls_loss_weight=0, *args, **kwargs):
+                 pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
+                 pc_number_of_prototypes=16, pc_conv_filters=32, pc_sep_loss_weight=0, pc_cls_loss_weight=0,
+                 pc_stride=1, pc_filter_size=3, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -29,17 +31,20 @@ class ProtoConvLitModule(pl.LightningModule):
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
         self.learning_rate = lr
-        self.project_prototypes_every_n = project_prototypes_every_n
-        self.sim_func = sim_func
-        self.separation_threshold = separation_threshold
-        self.sep_loss_weight = sep_loss_weight
-        self.cls_loss_weight = cls_loss_weight
-        self.number_of_prototypes: int = number_of_prototypes
-        self.latent_size: int = latent_size
+        self.project_prototypes_every_n = pc_project_prototypes_every_n
+        self.sim_func = pc_sim_func
+        self.separation_threshold = pc_separation_threshold
+        self.sep_loss_weight = pc_sep_loss_weight
+        self.cls_loss_weight = pc_cls_loss_weight
+        self.number_of_prototypes: int = pc_number_of_prototypes
+        self.conv_filters: int = pc_conv_filters
+        self.conv_stride: int = pc_stride
+        self.filter_size = pc_filter_size
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, self.latent_size, kernel_size=3, padding=0, padding_mode="reflect")
-        self.prototypes = PrototypeLayer(channels_in=self.latent_size, number_of_prototypes=self.number_of_prototypes)
+        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
+                                        stride=self.conv_stride, padding_mode="reflect")
+        self.prototypes = PrototypeLayer(channels_in=self.conv_filters, number_of_prototypes=self.number_of_prototypes)
         self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
@@ -155,3 +160,11 @@ class ProtoConvLitModule(pl.LightningModule):
             'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=10, factor=0.1),
             'monitor': f'val_loss_{self.fold_id}'
         }
+
+    @classmethod
+    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
+        model.embedding.weight.data.copy_(TEXT.vocab.vectors)
+        model.vocab_itos = TEXT.vocab.itos
+        return model, train_loader, val_loader
