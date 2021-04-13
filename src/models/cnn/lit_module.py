@@ -14,7 +14,7 @@ class CNNLitModule(pl.LightningModule):
 
     def __init__(self, vocab_size, embedding_dim, fold_id, lr, static=True, cnn_conv_filters=32, cnn_filter_size=3,
                  *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.save_hyperparameters()
 
         self.fold_id = fold_id
@@ -76,7 +76,6 @@ class CNNLitModule(pl.LightningModule):
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
         TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
-        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], lr=params.lr,
-                    fold_id=fold_id, **params)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
         return model, train_loader, val_loader

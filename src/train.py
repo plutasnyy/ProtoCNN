@@ -27,6 +27,7 @@ import numpy as np
 @click.command()
 @optgroup.group('COMET ML conf', help='The configuration of logging connection')
 @optgroup.option('--run-name', required=True, type=str)
+@optgroup.option('--project-name', default=None, type=str, help='Override project name from config.ini')
 @optgroup.option('--cache', default=None, type=str, help='Path to the cached embeddings, None for local runs and '
                                                          'drive:/.vectors_cached in order to run in the cloud')
 @optgroup.option('--logger/--no-logger', default=True, help='Turn off logging for local runs')
@@ -42,10 +43,10 @@ import numpy as np
                  help='Automatic finding learning rate, usually doesnt work')
 @optgroup.option('--batch-size', default=32, type=int, help='Batch size')
 @optgroup.option('--seed', default=0, type=int)
-@optgroup.option('-fdr', '--fast-dev-run', default=False, type=int)
+@optgroup.option('-fdr', '--fast-dev-run', default=False, type=int, help='Train/valid/test 1 epoch with only N batches')
 @optgroup.group('TRANSFORMER conf')
-@optgroup.option('--tokenizer-length', default=None, type=int, help='Max length of input for tokenizer, if None use value'
-                                                                 'from dataset configuration')
+@optgroup.option('--tokenizer-length', default=None, type=int,
+                 help='Max length of input for tokenizer, if None use value from dataset configuration')
 @optgroup.group('CNN conf')
 @optgroup.option('--cnn-conv-filters', default=32, type=int, help='Number of convolutional filters')
 @optgroup.option('--cnn-filter-size', default=3, type=int, help='Size of convolutional filter')
@@ -62,8 +63,8 @@ import numpy as np
 @optgroup.option('--pc-filter-size', default=3, type=int, help='Size of convolutional filter')
 @optgroup.option('--pc-stride', default=1, type=int, help='Size of stride in convolutional layer')
 @optgroup.option('--pc-project-prototypes-every-n', default=4, type=int)
-def train(**params):
-    params = EasyDict(params)
+def train(**args):
+    params = EasyDict(args)
     seed_everything(params.seed)
 
     config = ConfigParser()
@@ -75,7 +76,8 @@ def train(**params):
     logger = DummyLogger()
     if params.logger:
         comet_config = EasyDict(config['cometml'])
-        logger = CometLogger(api_key=comet_config.apikey, project_name=comet_config.projectname,
+        project_name = params.projectname if params.projectname else comet_config.projectname
+        logger = CometLogger(api_key=comet_config.apikey, project_name=project_name,
                              workspace=comet_config.workspace)
 
     logger.experiment.log_code(folder='src')
@@ -91,7 +93,7 @@ def train(**params):
         i = str(fold_id)
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-            save_weights_only=True, save_top_k=10,
+            save_weights_only=True, save_top_k=1,
             monitor='val_acc_' + i, period=1
         )
         early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', min_delta=0.005)
