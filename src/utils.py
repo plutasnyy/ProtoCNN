@@ -34,7 +34,7 @@ def get_n_splits(dataset, x_label, y_label, folds):
     result = []
     for train_indices, test_indices in n_splits:
         train_ids, val_ids = train_test_split(train_indices, test_size=0.25)
-        result.append((train_ids, val_ids, test_indices))
+        result.append((list(train_ids), list(val_ids), list(test_indices)))
 
     return result
 
