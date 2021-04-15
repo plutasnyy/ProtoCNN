@@ -81,13 +81,13 @@ def train(**args):
         project_name = params.project_name if params.project_name else comet_config.projectname
         logger = CometLogger(api_key=comet_config.apikey, project_name=project_name, workspace=comet_config.workspace)
 
-    logger.experiment.log_code(folder='src')
+    #logger.experiment.log_code(folder='src')
     logger.log_hyperparams(params)
     base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
     n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
-    log_splits(n_splits, logger)
+    #log_splits(n_splits, logger)
 
     best_models_scores = []
     for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
@@ -98,7 +98,6 @@ def train(**args):
         )
         early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=5, verbose=True, mode='min', min_delta=0.005)
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
-
         train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
         lit_module = model_to_litmodule[params.model]
@@ -109,18 +108,18 @@ def train(**args):
         trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
         trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 
-        for absolute_path in model_checkpoint.best_k_models.keys():
-            logger.experiment.log_model(Path(absolute_path).name, absolute_path)
+        #for absolute_path in model_checkpoint.best_k_models.keys():
+        #    logger.experiment.log_model(Path(absolute_path).name, absolute_path)
         if model_checkpoint.best_model_score:
             best_models_scores.append(model_checkpoint.best_model_score.tolist())
             logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
 
-        if params.model == 'protoconv' and model_checkpoint.best_model_path:
-            if fold_id == 0:
-                best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-                visualization_path = f'prototypes_visualization_{fold_id}.html'
-                visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
-                logger.experiment.log_asset(visualization_path)
+        #if params.model == 'protoconv' and model_checkpoint.best_model_path:
+        #    if fold_id == 0:
+        #        best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
+        #        visualization_path = f'prototypes_visualization_{fold_id}.html'
+        #        visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
+        #        logger.experiment.log_asset(visualization_path)
 
     if len(best_models_scores) >= 1:
         logger.log_metrics({
