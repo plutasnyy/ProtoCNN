@@ -22,7 +22,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_sep_loss_weight=0, pc_cls_loss_weight=0,
-                 pc_stride=1, pc_filter_size=3, *args, **kwargs):
+                 pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand', *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -40,11 +40,13 @@ class ProtoConvLitModule(pl.LightningModule):
         self.conv_filters: int = pc_conv_filters
         self.conv_stride: int = pc_stride
         self.filter_size = pc_filter_size
+        self.prototypes_init = pc_prototypes_init
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
                                         stride=self.conv_stride, padding_mode="reflect")
-        self.prototypes = PrototypeLayer(channels_in=self.conv_filters, number_of_prototypes=self.number_of_prototypes)
+        self.prototypes = PrototypeLayer(channels_in=self.conv_filters, number_of_prototypes=self.number_of_prototypes,
+                                         initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
@@ -134,7 +136,7 @@ class ProtoConvLitModule(pl.LightningModule):
         :param prototypes:
         :param alpha: the threshold, after that higher distances are ignored: distance = max(distance,alpha)
         """
-        # TODO distance is not squared, where clustering loss uses squared distances
+        # TODO distance is not squared, clustering loss uses squared distances
         prot = prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
         distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
         max_value = torch.max(distances_matrix) + 1
@@ -154,10 +156,10 @@ class ProtoConvLitModule(pl.LightningModule):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8)
+        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         return {
             'optimizer': optimizer,
-            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=10, factor=0.1),
+            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1),
             'monitor': f'val_loss_{self.fold_id}'
         }
 

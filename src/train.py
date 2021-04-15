@@ -63,6 +63,8 @@ import numpy as np
 @optgroup.option('--pc-filter-size', default=3, type=int, help='Size of convolutional filter')
 @optgroup.option('--pc-stride', default=1, type=int, help='Size of stride in convolutional layer')
 @optgroup.option('--pc-project-prototypes-every-n', default=4, type=int)
+@optgroup.option('--pc-prototypes-init', type=click.Choice(['rand', 'zeros', 'xavier']), default='rand',
+                 help='How weights in PrototypeLayer should be initialized')
 def train(**args):
     params = EasyDict(args)
     seed_everything(params.seed)

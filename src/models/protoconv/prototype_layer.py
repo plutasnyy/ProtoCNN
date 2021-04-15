@@ -4,10 +4,18 @@ from torch import nn
 
 
 class PrototypeLayer(nn.Module):
-    def __init__(self, channels_in, number_of_prototypes):
+    def __init__(self, channels_in, number_of_prototypes, initialization='rand'):
         super().__init__()
-        self.prototypes = nn.Parameter(torch.rand([number_of_prototypes, channels_in, 1]), requires_grad=True)
-        torch.nn.init.xavier_uniform(self.prototypes.data)
+        if initialization == 'rand':
+            self.prototypes = nn.Parameter(torch.rand([number_of_prototypes, channels_in, 1]), requires_grad=True)
+        elif initialization == 'zeros':
+            self.prototypes = nn.Parameter(torch.zeros([number_of_prototypes, channels_in, 1]), requires_grad=True)
+        elif initialization == 'xavier':
+            self.prototypes = nn.Parameter(torch.rand([number_of_prototypes, channels_in, 1]), requires_grad=True)
+            torch.nn.init.xavier_uniform(self.prototypes.data)
+        else:
+            raise KeyError(f'Invalid initialization parameter {initialization}, '
+                           f'only ["rand", "zeros", "xavier" are allowed')
         self.ones = nn.Parameter(torch.ones([number_of_prototypes, channels_in, 1]), requires_grad=False)
 
     def __call__(self, x):
