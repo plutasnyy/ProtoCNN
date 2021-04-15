@@ -15,7 +15,7 @@ class PrototypeLayer(nn.Module):
             torch.nn.init.xavier_uniform(self.prototypes.data)
         else:
             raise KeyError(f'Invalid initialization parameter {initialization}, '
-                           f'only ["rand", "zeros", "xavier" are allowed')
+                           f'only ["rand", "zeros", "xavier"] are allowed')
         self.ones = nn.Parameter(torch.ones([number_of_prototypes, channels_in, 1]), requires_grad=False)
 
     def __call__(self, x):

@@ -58,6 +58,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.loss = BCEWithLogitsLoss()
 
         self.last_train_losses = None
+        self.vocab_itos = None
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
