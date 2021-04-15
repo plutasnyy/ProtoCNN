@@ -111,9 +111,9 @@ def train(**args):
         for absolute_path in model_checkpoint.best_k_models.keys():
             logger.experiment.log_model(Path(absolute_path).name, absolute_path)
 
-        # if model_checkpoint.best_model_score:
-        #     best_models_scores.append(model_checkpoint.best_model_score.tolist())
-        #     logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
+        if model_checkpoint.best_model_score:
+            best_models_scores.append(model_checkpoint.best_model_score.tolist())
+            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
 
         if params.model == 'protoconv' and model_checkpoint.best_model_path:
             if fold_id == 0:
