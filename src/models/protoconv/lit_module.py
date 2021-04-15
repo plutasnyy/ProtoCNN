@@ -22,7 +22,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_sep_loss_weight=0, pc_cls_loss_weight=0,
-                 pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand', *args, **kwargs):
+                 pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand', vocab_itos=None, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -58,7 +58,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.loss = BCEWithLogitsLoss()
 
         self.last_train_losses = None
-        self.vocab_itos = None
+        self.vocab_itos = vocab_itos
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -167,7 +167,7 @@ class ProtoConvLitModule(pl.LightningModule):
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
         TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
-        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,
+                    vocab_itos=TEXT.vocab.itos, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
-        model.vocab_itos = TEXT.vocab.itos
         return model, train_loader, val_loader
