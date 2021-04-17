@@ -58,7 +58,8 @@ import numpy as np
 @optgroup.option('--pc-cls-loss-weight', default=0, type=float, help='Weight of clustering loss')
 @optgroup.option('--pc-sep-loss-weight', default=0, type=float, help='Weight of separation loss')
 @optgroup.option('--pc-number-of-prototypes', default=None, type=int,
-                 help='Number of prototypes, if None the default value from configs.py for each dataset will be chosen')
+                 help='Number of prototypes, if None or -1 the default value from configs.py '
+                      'for each dataset will be chosen')
 @optgroup.option('--pc-conv-filters', default=32, type=int,
                  help='Number of convolutional filters, also size of the prototype')
 @optgroup.option('--pc-filter-size', default=3, type=int, help='Size of convolutional filter')
