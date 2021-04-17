@@ -19,7 +19,7 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
 from models.protoconv.visualize_prototypes import visualize_model
-from configs import dataset_tokens_length, model_to_litmodule
+from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes
 
 import numpy as np
 
@@ -57,7 +57,8 @@ import numpy as np
                  help='After that distance the seperation cost is ignored, optimal value between 0-2')
 @optgroup.option('--pc-cls-loss-weight', default=0, type=float, help='Weight of clustering loss')
 @optgroup.option('--pc-sep-loss-weight', default=0, type=float, help='Weight of separation loss')
-@optgroup.option('--pc-number-of-prototypes', default=16, type=int, help='Number of prototypes')
+@optgroup.option('--pc-number-of-prototypes', default=None, type=int,
+                 help='Number of prototypes, if None the default value from configs.py for each dataset will be chosen')
 @optgroup.option('--pc-conv-filters', default=32, type=int,
                  help='Number of convolutional filters, also size of the prototype')
 @optgroup.option('--pc-filter-size', default=3, type=int, help='Size of convolutional filter')
@@ -74,6 +75,9 @@ def train(**args):
 
     if params.model == 'distilbert' and params.tokenizer_length is None:
         params.tokenizer_length = dataset_tokens_length[params.data_set]
+
+    if params.model == 'protoconv' and params.pc_number_of_prototypes is None:
+        params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
 
     logger = DummyLogger()
     if params.logger:
@@ -111,9 +115,9 @@ def train(**args):
         for absolute_path in model_checkpoint.best_k_models.keys():
             logger.experiment.log_model(Path(absolute_path).name, absolute_path)
 
-        # if model_checkpoint.best_model_score:
-        #     best_models_scores.append(model_checkpoint.best_model_score.tolist())
-        #     logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
+        if model_checkpoint.best_model_score:
+            best_models_scores.append(model_checkpoint.best_model_score.tolist())
+            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
 
         if params.model == 'protoconv' and model_checkpoint.best_model_path:
             if fold_id == 0:

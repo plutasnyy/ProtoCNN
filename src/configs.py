@@ -16,8 +16,18 @@ dataset_tokens_length = {
     'rottentomatoes': 128,
 }
 
+dataset_to_number_of_prototypes = {
+    'imdb': 32,
+    'amazon': 32,
+    'yelp': 8,
+    'rottentomatoes': 48,
+    'hotel': 48
+}
+
 model_to_litmodule = {
     'distilbert': TransformerLitModule,
     'cnn': CNNLitModule,
     'protoconv': ProtoConvLitModule
 }
+
+
