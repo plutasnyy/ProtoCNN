@@ -76,7 +76,7 @@ def train(**args):
     if params.model == 'distilbert' and params.tokenizer_length is None:
         params.tokenizer_length = dataset_tokens_length[params.data_set]
 
-    if params.model == 'protoconv' and params.pc_number_of_prototypes is None:
+    if params.model == 'protoconv' and params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1:
         params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
 
     logger = DummyLogger()
