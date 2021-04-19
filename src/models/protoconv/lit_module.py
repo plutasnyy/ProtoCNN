@@ -17,10 +17,6 @@ from models.protoconv.return_wrappers import LossesWrapper, PrototypeDetailPredi
 
 
 class ProtoConvLitModule(pl.LightningModule):
-    dist_to_sim = {
-        'linear': lambda x: -x,
-        'log': lambda x: torch.log((x + 1) / (x + 1e-4))
-    }
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
@@ -29,6 +25,11 @@ class ProtoConvLitModule(pl.LightningModule):
         super().__init__()
 
         self.save_hyperparameters()
+
+        self.dist_to_sim = {
+            'linear': lambda x: -x,
+            'log': lambda x: torch.log((x + 1) / (x + 1e-4))
+        }
 
         self.fold_id = fold_id
         self.vocab_size = vocab_size
@@ -72,13 +73,14 @@ class ProtoConvLitModule(pl.LightningModule):
         latent_space = self.get_features(x)
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
-        similarity = self.dist_to_sim[self.sim_func](min_dist)
+        similarity = torch.log((min_dist + 1) / (min_dist + 1e-4))
         logits = self.fc1(similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
 
     def on_train_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
-            self.prototype_projection.reset(device=self.device)
+            self.prototype_projection.reset(device=self.device,
+                                            number_of_prototypes=self.prototypes.prototypes.shape[0])
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():
@@ -103,16 +105,22 @@ class ProtoConvLitModule(pl.LightningModule):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
 
-        # self._remove_prototype(0)
-        # self._add_prototype()
-        #
-        # _, ids = torch.where(torch.abs(self.fc1.weight) < 0.001)
-        # print(f'Remove prototypes: {ids.cpu().numpy()}')
-        # for shift, i in enumerate(ids.cpu().numpy()):
-        #     # the prototype ids are shifted after removing each one
-        #     self._remove_prototype(i - shift)
+    # def on_validation_epoch_start(self) -> None:
+    # print('pass')
+    # self._remove_prototype([0])
+    # self._add_prototype()
+    # print('lala')
+    # new_optimizer = self._get_optimizer()
+    # self.trainer.optimizers = [new_optimizer]
+    # for lr_scheduler in self.trainer.lr_schedulers:
+    #     lr_scheduler.optimizer = new_optimizer
+    # _, ids = torch.where(torch.abs(self.fc1.weight) < 0.001)
+    # print(f'Remove prototypes: {ids.cpu().numpy()}')
+    # for shift, i in enumerate(ids.cpu().numpy()):
+    #     # the prototype ids are shifted after removing each one
+    #     self._remove_prototype(i - shift)
 
-        # self._add_prototype()
+    # self._add_prototype()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -170,32 +178,26 @@ class ProtoConvLitModule(pl.LightningModule):
     def _is_projection_prototype_epoch(self):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
 
-    def _remove_prototype(self, prototype_id, target_prototype_id=None):
+    def _remove_prototype(self, prototype_ids, target_prototype_ids=None):
         """
-        :param prototype_id: ID of prototype to remove
-        :param target_prototype_id: When the 2 prototypes are almost identical, you don't just want to delete
+        :param prototype_ids: list IDs of prototypes to remove
+        :param target_prototype_ids: When the 2 prototypes are almost identical, you don't just want to delete
         the prototype, but also transfer its weight to the other prototype. target_prototype_id is used to specify
         the location of the prototype where the weight from prototype_id will be transferred. The result of softmax
         should remain unchanged (as long as the prototypes represented the classes in the same way). If the prototype
         is completely irrelevant (e.g. its weight in the FC layer is 0), simply remove it and let this parameter be None
         """
         with torch.no_grad():
-            if target_prototype_id is not None:
-                self.fc1.weight[target_prototype_id] += self.fc1.weight[prototype_id]
+            if target_prototype_ids is not None:
+                self.fc1.weight[target_prototype_ids] += self.fc1.weight[prototype_ids]
 
-            self.prototypes.prototypes = torch.nn.Parameter(torch.cat([
-                self.prototypes.prototypes[0:prototype_id],
-                self.prototypes.prototypes[prototype_id + 1:]
-            ]))
-            self.prototypes.ones = torch.nn.Parameter(torch.cat([
-                self.prototypes.ones[0:prototype_id],
-                self.prototypes.ones[prototype_id + 1:]
-            ]))
-            self.fc1.weight = torch.nn.Parameter(torch.cat([
-                self.fc1.weight[:, 0:prototype_id],
-                self.fc1.weight[:, prototype_id + 1:]
-            ], dim=1))
-        print(f'Prototype {prototype_id} was removed')
+            prototypes_to_keep = sorted(list(set(range(self.prototypes.prototypes.shape[0])) - set(prototype_ids)))
+            self.prototypes.prototypes.data = nn.Parameter(self.prototypes.prototypes.data[prototypes_to_keep],
+                                                           requires_grad=True)
+            self.prototypes.ones.data = nn.Parameter(self.prototypes.ones.data[prototypes_to_keep], requires_grad=False)
+            self.fc1.weight.data = self.fc1.weight.data[:, prototypes_to_keep]
+            # self.fc1.in_features = len(prototypes_to_keep)
+        print(f'Prototypes {prototype_ids} were removed')
 
     def _add_prototype(self):
         """Add prototype add last position
@@ -203,12 +205,12 @@ class ProtoConvLitModule(pl.LightningModule):
         """
         with torch.no_grad():
             prototype_size = self.prototypes.prototypes.shape[1]
-            self.prototypes.prototypes = torch.nn.Parameter(torch.cat([
-                self.prototypes.prototypes,
+            self.prototypes.prototypes.data = torch.nn.Parameter(torch.cat([
+                self.prototypes.prototypes.data,
                 torch.rand([1, prototype_size, 1]).to(self.device)
             ]))
-            self.prototypes.ones = torch.nn.Parameter(torch.cat([
-                self.prototypes.ones,
+            self.prototypes.ones.data = torch.nn.Parameter(torch.cat([
+                self.prototypes.ones.data,
                 torch.ones([1, prototype_size, 1]).to(self.device)
             ]))
 
@@ -216,16 +218,22 @@ class ProtoConvLitModule(pl.LightningModule):
             new_weight = torch.nn.Parameter(torch.rand([1, 1]), requires_grad=True)
             std = math.sqrt(2.0 / float(fan_out_fc + fan_in_fc + 1))
             _no_grad_normal_(new_weight, 0., std)
-            self.fc1.weight = torch.nn.Parameter(torch.cat([self.fc1.weight, new_weight.to(self.device)], dim=1))
-            print(f'Added new prototype, new number of prototypes: {self.prototypes.prototypes.shape[0]}')
+            self.fc1.weight.data = torch.nn.Parameter(
+                torch.cat([self.fc1.weight.data, new_weight.to(self.device)], dim=1))
+            self.fc1.in_features = self.prototypes.prototypes.shape[0]
+
+        print(f'Added new prototype, current number of prototypes: {self.prototypes.prototypes.shape[0]}')
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
+        optimizer = self._get_optimizer()
         return {
             'optimizer': optimizer,
-            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1),
+            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True),
             'monitor': f'val_loss_{self.fold_id}'
         }
+
+    def _get_optimizer(self):
+        return AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
 
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):

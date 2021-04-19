@@ -34,6 +34,9 @@ class PrototypeProjection:
     def get_weights(self):
         return torch.tensor(self._projected_prototypes)
 
-    def reset(self, device):
+    def reset(self, device, number_of_prototypes=None):
+        if number_of_prototypes is not None:
+            self.number_of_prototypes = number_of_prototypes
+
         self._projected_prototypes = torch.zeros(self.prototype_shape, device=device)
         self._min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'), device=device)
