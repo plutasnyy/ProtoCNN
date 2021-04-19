@@ -1,8 +1,11 @@
+import math
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import BCEWithLogitsLoss
+from torch.nn.init import _no_grad_normal_
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -100,6 +103,17 @@ class ProtoConvLitModule(pl.LightningModule):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
 
+        # self._remove_prototype(0)
+        # self._add_prototype()
+        #
+        # _, ids = torch.where(torch.abs(self.fc1.weight) < 0.001)
+        # print(f'Remove prototypes: {ids.cpu().numpy()}')
+        # for shift, i in enumerate(ids.cpu().numpy()):
+        #     # the prototype ids are shifted after removing each one
+        #     self._remove_prototype(i - shift)
+
+        # self._add_prototype()
+
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
         self.log_all_metrics('val', losses)
@@ -155,6 +169,55 @@ class ProtoConvLitModule(pl.LightningModule):
 
     def _is_projection_prototype_epoch(self):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
+
+    def _remove_prototype(self, prototype_id, target_prototype_id=None):
+        """
+        :param prototype_id: ID of prototype to remove
+        :param target_prototype_id: When the 2 prototypes are almost identical, you don't just want to delete
+        the prototype, but also transfer its weight to the other prototype. target_prototype_id is used to specify
+        the location of the prototype where the weight from prototype_id will be transferred. The result of softmax
+        should remain unchanged (as long as the prototypes represented the classes in the same way). If the prototype
+        is completely irrelevant (e.g. its weight in the FC layer is 0), simply remove it and let this parameter be None
+        """
+        with torch.no_grad():
+            if target_prototype_id is not None:
+                self.fc1.weight[target_prototype_id] += self.fc1.weight[prototype_id]
+
+            self.prototypes.prototypes = torch.nn.Parameter(torch.cat([
+                self.prototypes.prototypes[0:prototype_id],
+                self.prototypes.prototypes[prototype_id + 1:]
+            ]))
+            self.prototypes.ones = torch.nn.Parameter(torch.cat([
+                self.prototypes.ones[0:prototype_id],
+                self.prototypes.ones[prototype_id + 1:]
+            ]))
+            self.fc1.weight = torch.nn.Parameter(torch.cat([
+                self.fc1.weight[:, 0:prototype_id],
+                self.fc1.weight[:, prototype_id + 1:]
+            ], dim=1))
+        print(f'Prototype {prototype_id} was removed')
+
+    def _add_prototype(self):
+        """Add prototype add last position
+        https://discuss.pytorch.org/t/how-can-i-insert-a-row-into-a-floattensor/18049
+        """
+        with torch.no_grad():
+            prototype_size = self.prototypes.prototypes.shape[1]
+            self.prototypes.prototypes = torch.nn.Parameter(torch.cat([
+                self.prototypes.prototypes,
+                torch.rand([1, prototype_size, 1]).to(self.device)
+            ]))
+            self.prototypes.ones = torch.nn.Parameter(torch.cat([
+                self.prototypes.ones,
+                torch.ones([1, prototype_size, 1]).to(self.device)
+            ]))
+
+            fan_out_fc, fan_in_fc = self.fc1.weight.shape
+            new_weight = torch.nn.Parameter(torch.rand([1, 1]), requires_grad=True)
+            std = math.sqrt(2.0 / float(fan_out_fc + fan_in_fc + 1))
+            _no_grad_normal_(new_weight, 0., std)
+            self.fc1.weight = torch.nn.Parameter(torch.cat([self.fc1.weight, new_weight.to(self.device)], dim=1))
+            print(f'Added new prototype, new number of prototypes: {self.prototypes.prototypes.shape[0]}')
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
