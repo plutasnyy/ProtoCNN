@@ -59,10 +59,10 @@ class ProtoConvLitModule(pl.LightningModule):
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
-        std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
-        bound = math.sqrt(3.0) * std
-        with torch.no_grad():
-            self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
+        #std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
+        #bound = math.sqrt(3.0) * std
+        #with torch.no_grad():
+            #self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
