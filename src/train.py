@@ -1,5 +1,7 @@
 import os
 
+from torchtext.vocab import FastText
+
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from configparser import ConfigParser
@@ -94,6 +96,8 @@ def train(**args):
     n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
     # log_splits(n_splits, logger)
 
+    embeddings = FastText('en', cache=params.cache) if params.model != 'distilbert' else None
+
     best_models_scores = []
     for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
         i = str(fold_id)
@@ -106,7 +110,7 @@ def train(**args):
         train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
         lit_module = model_to_litmodule[params.model]
-        model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id)
+        model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id, embeddings)
 
         trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
                           gpus=1, deterministic=True, fast_dev_run=params.fast_dev_run)
@@ -118,7 +122,7 @@ def train(**args):
 
         if model_checkpoint.best_model_score:
             best_models_scores.append(model_checkpoint.best_model_score.tolist())
-            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()})
+            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
         if params.model == 'protoconv' and model_checkpoint.best_model_path:
             if fold_id == 0:

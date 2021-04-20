@@ -45,7 +45,7 @@ class TransformerLitModule(pl.LightningModule):
         }
 
     @classmethod
-    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
+    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
         from configs import transformer_data
         model_class, tokenizer_class, model_name = transformer_data[params.model]
         tokenizer = tokenizer_class.from_pretrained(model_name, do_lower_case=True)

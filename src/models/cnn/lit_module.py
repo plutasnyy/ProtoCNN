@@ -74,8 +74,9 @@ class CNNLitModule(pl.LightningModule):
         }
 
     @classmethod
-    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
-        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
+    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=1,
+                                                            vectors=embeddings)
         model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
         return model, train_loader, val_loader

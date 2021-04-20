@@ -6,7 +6,7 @@ from torchtext.vocab import FastText
 from models.dataframe_dataset import DataFrameDataset
 
 
-def get_dataset(train_df, valid_df, batch_size, cache, gpus=1):
+def get_dataset(train_df, valid_df, batch_size, cache=None, gpus=1, vectors=None):
     TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
                       batch_first=True, lower=True)
     LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
@@ -28,7 +28,8 @@ def get_dataset(train_df, valid_df, batch_size, cache, gpus=1):
         device='cuda' if torch.cuda.is_available() and gpus else 'cpu'
     )
 
-    TEXT.build_vocab(train_dataset.text, vectors=FastText('en', cache=cache))
+    embeddings = vectors if vectors is not None else FastText('en', cache=cache)
+    TEXT.build_vocab(train_dataset.text, vectors=embeddings)
     LABEL.build_vocab(train_dataset.label)
 
     return TEXT, LABEL, train_loader, val_loader

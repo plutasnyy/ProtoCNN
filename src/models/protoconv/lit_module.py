@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import BCEWithLogitsLoss
-from torch.nn.init import _no_grad_normal_
+from torch.nn.init import _no_grad_normal_, calculate_gain
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -59,6 +59,11 @@ class ProtoConvLitModule(pl.LightningModule):
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
+        std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
+        bound = math.sqrt(3.0) * std
+        with torch.no_grad():
+            self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
+
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
         if static_embedding:
@@ -202,12 +207,11 @@ class ProtoConvLitModule(pl.LightningModule):
                     self.prototypes.prototypes.data[0, new_prototype_id]
                 )
 
-                fan_out_fc, fan_in_fc = self.fc1.weight.shape
-                new_weight = torch.nn.Parameter(torch.rand([1, 1]), requires_grad=True)
-                std = math.sqrt(2.0 / float(fan_out_fc + fan_in_fc + 1))
-                _no_grad_normal_(new_weight, 0., std)
-                self.fc1.weight.data[0, new_prototype_id] = new_weight
+                std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
+                bound = math.sqrt(3.0) * std
+                self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
 
+            self.fc1.weight.data.uniform_(-bound, bound)
             self.current_prototypes_number += 1
             print(f'Added new prototype, current number of prototypes: {self.prototypes.prototypes.shape[0]}')
 
@@ -225,8 +229,9 @@ class ProtoConvLitModule(pl.LightningModule):
         }
 
     @classmethod
-    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id):
-        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, params.cache, gpus=1)
+    def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=1,
+                                                            vectors=embeddings)
         model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,
                     vocab_itos=TEXT.vocab.itos, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
