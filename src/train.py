@@ -69,6 +69,7 @@ import numpy as np
 @optgroup.option('--pc-project-prototypes-every-n', default=4, type=int)
 @optgroup.option('--pc-prototypes-init', type=click.Choice(['rand', 'zeros', 'xavier']), default='rand',
                  help='How weights in PrototypeLayer should be initialized')
+@optgroup.option('--pc-visualize', default=False, help='Visualize prototypes after best model in first fold')
 def train(**args):
     params = EasyDict(args)
     seed_everything(params.seed)
@@ -124,12 +125,11 @@ def train(**args):
             best_models_scores.append(model_checkpoint.best_model_score.tolist())
             logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-        if params.model == 'protoconv' and model_checkpoint.best_model_path:
-            if fold_id == 0:
-                best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-                visualization_path = f'prototypes_visualization_{fold_id}.html'
-                visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
-                logger.experiment.log_asset(visualization_path)
+        if params.model == 'protoconv' and model_checkpoint.best_model_path and params.pc_visualize and fold_id == 0:
+            best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
+            visualization_path = f'prototypes_visualization_{fold_id}.html'
+            visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
+            logger.experiment.log_asset(visualization_path)
 
     if len(best_models_scores) >= 1:
         logger.log_metrics({
