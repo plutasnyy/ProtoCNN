@@ -140,8 +140,8 @@ def train(**args):
         logger.log_metrics({
             'avg_best_scores': avg_best,
             'std_best_scores': std_best,
-            'table_entry': table_entry
         })
+        logger.log_hyperparams({'table_entry': table_entry})
 
 
 if __name__ == '__main__':
