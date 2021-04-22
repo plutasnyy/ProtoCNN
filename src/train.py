@@ -134,9 +134,13 @@ def train(**args):
             logger.experiment.log_asset(visualization_path)
 
     if len(best_models_scores) >= 1:
+        avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(np.std(np.array(best_models_scores)))
+        table_entry = f'{avg_best:.3f} ($\pm${std_best:.3f})'
+
         logger.log_metrics({
-            'avg_best_scores': float(np.mean(np.array(best_models_scores))),
-            'std_best_scores': float(np.std(np.array(best_models_scores))),
+            'avg_best_scores': avg_best,
+            'std_best_scores': std_best,
+            'table_entry': table_entry
         })
 
 
