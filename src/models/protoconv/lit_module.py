@@ -232,7 +232,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
         TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=1,
                                                             vectors=embeddings)
+        itos = TEXT.vocab.itos if params.pc_visualize else None
         model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,
-                    vocab_itos=TEXT.vocab.itos, **params)
+                    vocab_itos=itos, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
         return model, train_loader, val_loader

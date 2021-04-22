@@ -69,7 +69,8 @@ import numpy as np
 @optgroup.option('--pc-project-prototypes-every-n', default=4, type=int)
 @optgroup.option('--pc-prototypes-init', type=click.Choice(['rand', 'zeros', 'xavier']), default='rand',
                  help='How weights in PrototypeLayer should be initialized')
-@optgroup.option('--pc-visualize', default=False, help='Visualize prototypes after best model in first fold')
+@optgroup.option('--pc-visualize', default=False, help='Visualize prototypes after best model in first fold. '
+                                                       'Used in trainer and fabric of ProtoConv Module')
 def train(**args):
     params = EasyDict(args)
     seed_everything(params.seed)
@@ -111,7 +112,8 @@ def train(**args):
         train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
         lit_module = model_to_litmodule[params.model]
-        model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id, embeddings)
+        model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id,
+                                                                             embeddings)
 
         trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
                           gpus=1, deterministic=True, fast_dev_run=params.fast_dev_run)
