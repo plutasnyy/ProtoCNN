@@ -45,20 +45,20 @@ class ProtoConvLitModule(pl.LightningModule):
         self.filter_size = pc_filter_size
         self.prototypes_init = pc_prototypes_init
 
-        self.max_number_of_prototypes = 100
-        self.current_prototypes_number = self.number_of_prototypes
-        self.enabled_prototypes_mask = nn.Parameter(torch.cat([
-            torch.ones(self.current_prototypes_number),
-            torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
-        ]), requires_grad=False)
+        # self.max_number_of_prototypes = 100
+        # self.current_prototypes_number = self.number_of_prototypes
+        # self.enabled_prototypes_mask = nn.Parameter(torch.cat([
+        #     torch.ones(self.current_prototypes_number),
+        #     torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
+        # ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
                                         stride=self.conv_stride, padding_mode="reflect")
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
-                                         number_of_prototypes=self.max_number_of_prototypes,
+                                         number_of_prototypes=self.number_of_prototypes,
                                          initialization=self.prototypes_init)
-        self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
+        self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
         # std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
         # bound = math.sqrt(3.0) * std
         # with torch.no_grad():
@@ -76,7 +76,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.last_train_losses = None
         self.vocab_itos = vocab_itos
 
-        self._zeroing_disabled_prototypes()
+        # self._zeroing_disabled_prototypes()
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -88,8 +88,8 @@ class ProtoConvLitModule(pl.LightningModule):
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
-        masked_similarity = similarity * self.enabled_prototypes_mask
-        logits = self.fc1(masked_similarity).squeeze(1)
+        # masked_similarity = similarity * self.enabled_prototypes_mask
+        logits = self.fc1(similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
 
     def on_train_epoch_start(self, *args, **kwargs):
