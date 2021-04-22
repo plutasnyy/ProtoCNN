@@ -221,7 +221,7 @@ class ProtoConvLitModule(pl.LightningModule):
             self.fc1.weight.data[:, ~self.enabled_prototypes_mask.bool()] *= 0
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.01)
+        optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         return {
             'optimizer': optimizer,
             'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True),
