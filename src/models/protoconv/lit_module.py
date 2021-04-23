@@ -76,7 +76,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.last_train_losses = None
         self.vocab_itos = vocab_itos
 
-        # self._zeroing_disabled_prototypes()
+        self._zeroing_disabled_prototypes()
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
