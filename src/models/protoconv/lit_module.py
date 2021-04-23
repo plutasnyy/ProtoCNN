@@ -45,20 +45,20 @@ class ProtoConvLitModule(pl.LightningModule):
         self.filter_size = pc_filter_size
         self.prototypes_init = pc_prototypes_init
 
-        # self.max_number_of_prototypes = 100
+        self.max_number_of_prototypes = 100
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
-            torch.ones(self.current_prototypes_number)
-            # torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
+            torch.ones(self.current_prototypes_number),
+            torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
         ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
                                         stride=self.conv_stride, padding_mode="reflect")
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
-                                         number_of_prototypes=self.number_of_prototypes,
+                                         number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
-        self.fc1 = nn.Linear(self.number_of_prototypes, 1, bias=False)
+        self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
         # std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
         # bound = math.sqrt(3.0) * std
         # with torch.no_grad():
