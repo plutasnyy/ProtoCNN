@@ -76,7 +76,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.last_train_losses = None
         self.vocab_itos = vocab_itos
 
-        # self._zeroing_disabled_prototypes()
+        self._zeroing_disabled_prototypes()
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -230,7 +230,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
-        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=1,
+        TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=params.gpu,
                                                             vectors=embeddings)
         itos = TEXT.vocab.itos if params.pc_visualize else None
         model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,

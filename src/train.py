@@ -33,6 +33,7 @@ import numpy as np
 @optgroup.option('--cache', default=None, type=str, help='Path to the cached embeddings, None for local runs and '
                                                          'drive:/.vectors_cached in order to run in the cloud')
 @optgroup.option('--logger/--no-logger', default=True, help='Turn off logging for local runs')
+@optgroup.option('--gpu/--no-gpu', default=True, help='GPU')
 @optgroup.group('TRAINING conf')
 @optgroup.option('--model', type=click.Choice(['distilbert', 'cnn', 'protoconv']), required=True,
                  help='Which model should be used')
@@ -73,6 +74,7 @@ import numpy as np
                                                        'Used in trainer and fabric of ProtoConv Module')
 def train(**args):
     params = EasyDict(args)
+    params.gpu = int(params.gpu)
     seed_everything(params.seed)
 
     config = ConfigParser()
@@ -116,7 +118,7 @@ def train(**args):
                                                                              embeddings)
 
         trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
-                          gpus=1, deterministic=True, fast_dev_run=params.fast_dev_run)
+                          gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
         trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
         trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 
