@@ -46,11 +46,11 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes_init = pc_prototypes_init
 
         # self.max_number_of_prototypes = 100
-        # self.current_prototypes_number = self.number_of_prototypes
-        # self.enabled_prototypes_mask = nn.Parameter(torch.cat([
-        #     torch.ones(self.current_prototypes_number),
-        #     torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
-        # ]), requires_grad=False)
+        self.current_prototypes_number = self.number_of_prototypes
+        self.enabled_prototypes_mask = nn.Parameter(torch.cat([
+            torch.ones(self.current_prototypes_number)
+            # torch.zeros(self.max_number_of_prototypes - self.current_prototypes_number)
+        ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
@@ -88,8 +88,8 @@ class ProtoConvLitModule(pl.LightningModule):
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
-        # masked_similarity = similarity * self.enabled_prototypes_mask
-        logits = self.fc1(similarity).squeeze(1)
+        masked_similarity = similarity * self.enabled_prototypes_mask
+        logits = self.fc1(masked_similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
 
     def on_train_epoch_start(self, *args, **kwargs):
