@@ -75,29 +75,35 @@ def visualize_model(model, data_loader, k_most_similar, file_name):
             outputs: PrototypeDetailPrediction = model(X)
 
             for i in range(n_prototypes):
-                prototype_repr = PrototypeRepresentation(
-                    float(local(outputs.min_distances.squeeze(0)[i])),
-                    local(outputs.distances.squeeze(0)[i]),
-                    local(X.squeeze(0))
-                )
+                if model.enabled_prototypes_mask[i] == 1:
+                    prototype_repr = PrototypeRepresentation(
+                        float(local(outputs.min_distances.squeeze(0)[i])),
+                        local(outputs.distances.squeeze(0)[i]),
+                        local(X.squeeze(0))
+                    )
 
-                if len(heaps[i]) < k_most_similar:
-                    heapq.heappush(heaps[i], prototype_repr)
-                else:
-                    heapq.heappushpop(heaps[i], prototype_repr)
+                    if len(heaps[i]) < k_most_similar:
+                        heapq.heappush(heaps[i], prototype_repr)
+                    else:
+                        heapq.heappushpop(heaps[i], prototype_repr)
 
     lines = []
     separator = '-' * 15
     fc_weights = local(model.fc1.weight.squeeze(0))
 
     for prototype_id in range(n_prototypes):
+
+        if not model.enabled_prototypes_mask[prototype_id]:
+            continue
+
         prototype_weight = round(float(fc_weights[prototype_id]), 4)
         lines.append(f'{separator} <b>Prototype {prototype_id + 1}</b>, weight {prototype_weight} {separator}')
 
         for example_id, example in enumerate(heapq.nlargest(3, heaps[prototype_id])):
             best_sim = model.dist_to_sim['log'](torch.tensor(example.best_patch_distance)).item()
-            best_sim_round = round(float(best_sim), 4)
+
             best_dist_round = round(float(example.best_patch_distance), 4)
+            best_sim_round = round(float(best_sim), 4)
             lines.append(f'Example {example_id + 1}, best distance {best_dist_round} (similarity {best_sim_round})')
 
             words = [vocab_int_to_string[j] for j in list(example.X)]

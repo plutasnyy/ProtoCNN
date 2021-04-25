@@ -9,14 +9,13 @@ class PrototypeProjection:
     """
 
     def __init__(self, prototype_shape):
-        self.prototype_shape = prototype_shape
+        """
+        :param prototype_shape: Shape of prototype layer
+        """
         self.number_of_prototypes = prototype_shape[0]
+        self.prototype_shape = prototype_shape[1:]
 
     def update(self, predictions: PrototypeDetailPrediction):
-        """
-        """
-        # assert predictions.distances.shape[1] == predictions.latent_space.shape[1]
-
         for pred_id in range(len(predictions.logits)):
             latent_space = predictions.latent_space[pred_id].squeeze(0)  # [32,115] [ latent_size, length]
             distances = predictions.distances[pred_id].squeeze(0)  # [16,115]  [prototypes, distances]
@@ -34,9 +33,6 @@ class PrototypeProjection:
     def get_weights(self):
         return torch.tensor(self._projected_prototypes)
 
-    def reset(self, device, number_of_prototypes=None):
-        if number_of_prototypes is not None:
-            self.number_of_prototypes = number_of_prototypes
-
-        self._projected_prototypes = torch.zeros(self.prototype_shape, device=device)
+    def reset(self, device):
+        self._projected_prototypes = torch.zeros([self.number_of_prototypes, *self.prototype_shape], device=device)
         self._min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'), device=device)

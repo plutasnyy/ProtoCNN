@@ -105,9 +105,13 @@ def train(**args):
     best_models_scores = []
     for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
         i = str(fold_id)
+        period = 1 if (
+                params.pc_project_prototypes_every_n <= 0 and params.model == 'protconv'
+        ) else params.pc_project_prototypes_every_n
+
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-            save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=1
+            save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=period
         )
         early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=7, verbose=True, mode='min', min_delta=0.005)
         callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
@@ -139,11 +143,11 @@ def train(**args):
         avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(np.std(np.array(best_models_scores)))
         table_entry = f'{avg_best:.3f} ($\pm${std_best:.3f})'
 
-        logger.log_metrics({
+        logger.log_hyperparams({
             'avg_best_scores': avg_best,
             'std_best_scores': std_best,
+            'table_entry': table_entry
         })
-        logger.log_hyperparams({'table_entry': table_entry})
 
 
 if __name__ == '__main__':

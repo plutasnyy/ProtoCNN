@@ -59,10 +59,8 @@ class ProtoConvLitModule(pl.LightningModule):
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
-        std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
-        bound = math.sqrt(3.0) * std
-        with torch.no_grad():
-            self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
+        self._init_fc_layer()
+        self._zeroing_disabled_prototypes()
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
 
@@ -75,8 +73,6 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.last_train_losses = None
         self.vocab_itos = vocab_itos
-
-        self._zeroing_disabled_prototypes()
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -94,8 +90,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
     def on_train_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
-            self.prototype_projection.reset(device=self.device,
-                                            number_of_prototypes=self.prototypes.prototypes.shape[0])
+            self.prototype_projection.reset(device=self.device)
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():
@@ -119,6 +114,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def on_train_epoch_end(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
+            self._zeroing_disabled_prototypes()
+            print('The prototypes were projected')
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -185,13 +182,17 @@ class ProtoConvLitModule(pl.LightningModule):
         should remain unchanged (as long as the prototypes represented the classes in the same way). If the prototype
         is completely irrelevant (e.g. its weight in the FC layer is 0), simply remove it and let this parameter be None
         """
-        _, zero_indices = (self.enabled_prototypes_mask == 0).nonzero(as_tuple=True)[0]
-        assert len(set(zero_indices) & set(prototype_ids)) == 0, \
-            f'You are trying to remove prototypes that dont exist: {list(set(zero_indices) & set(prototype_ids))}'
-
         with torch.no_grad():
+            zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1).cpu().numpy()
+
+            assert len(set(zero_indices) & set(prototype_ids)) == 0, \
+                f'You are trying to remove prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
+
             if target_prototype_ids is not None:
+                assert len(set(zero_indices) & set(target_prototype_ids)) == 0, \
+                    f'You are trying to add value to prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
                 self.fc1.weight.data[0, target_prototype_ids] += self.fc1.weight.data[0, prototype_ids]
+
             self.enabled_prototypes_mask[prototype_ids] = 0
 
         self._zeroing_disabled_prototypes()
@@ -200,20 +201,21 @@ class ProtoConvLitModule(pl.LightningModule):
     def _add_prototype(self):
         if self.current_prototypes_number < self.max_number_of_prototypes:
             with torch.no_grad():
-                _, zero_indices = (self.enabled_prototypes_mask == 0).nonzero(as_tuple=True)[0]
-                new_prototype_id = zero_indices[0]
-
-                self.prototypes.prototypes.data[0, new_prototype_id] = torch.rand_like(
-                    self.prototypes.prototypes.data[0, new_prototype_id]
-                )
+                zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1)
+                new_prototype_id = zero_indices[0].item()
 
                 std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
                 bound = math.sqrt(3.0) * std
                 self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
-
-            self.fc1.weight.data.uniform_(-bound, bound)
+                self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
             self.current_prototypes_number += 1
             print(f'Added new prototype, current number of prototypes: {self.prototypes.prototypes.shape[0]}')
+
+    def _init_fc_layer(self):
+        std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
+        bound = math.sqrt(3.0) * std
+        with torch.no_grad():
+            self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
 
     def _zeroing_disabled_prototypes(self):
         with torch.no_grad():
