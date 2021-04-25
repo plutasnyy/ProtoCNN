@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import BCEWithLogitsLoss
-from torch.nn.init import _no_grad_normal_, calculate_gain
+from torch.nn.init import calculate_gain
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -224,10 +224,14 @@ class ProtoConvLitModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
+        lr_scheduler = {
+            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True),
+            'name': f'learning_rate_{self.fold_id}',
+            'monitor': f'val_loss_{self.fold_id}'
+        }
         return {
             'optimizer': optimizer,
-            'lr_scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True),
-            'monitor': f'val_loss_{self.fold_id}'
+            'lr_scheduler': lr_scheduler,
         }
 
     @classmethod
