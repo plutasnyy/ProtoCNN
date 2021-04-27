@@ -25,8 +25,9 @@ class ProtoConvLitModule(pl.LightningModule):
 
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
-                 pc_number_of_prototypes=16, pc_conv_filters=32, pc_sep_loss_weight=0, pc_cls_loss_weight=0,
-                 pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand', vocab_itos=None, *args, **kwargs):
+                 pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
+                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand',
+                 vocab_itos=None, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -38,8 +39,10 @@ class ProtoConvLitModule(pl.LightningModule):
         self.project_prototypes_every_n = pc_project_prototypes_every_n
         self.sim_func = pc_sim_func
         self.separation_threshold = pc_separation_threshold
+        self.ce_loss_weight = pc_ce_loss_weight
         self.sep_loss_weight = pc_sep_loss_weight
         self.cls_loss_weight = pc_cls_loss_weight
+        self.l1_loss_weight = pc_l1_loss_weight
         self.number_of_prototypes: int = pc_number_of_prototypes
         self.conv_filters: int = pc_conv_filters
         self.conv_stride: int = pc_stride
@@ -130,7 +133,8 @@ class ProtoConvLitModule(pl.LightningModule):
         clustering_loss = self.calculate_clustering_loss(outputs)
         separation_loss = self.calculate_separation_loss(self.prototypes.prototypes, alpha=self.separation_threshold)
         l1 = self.fc1.weight.norm(p=1)
-        loss = cross_entropy + self.cls_loss_weight * clustering_loss + self.sep_loss_weight * separation_loss + 1e-2 * l1
+        loss = self.ce_loss_weight * cross_entropy + self.cls_loss_weight * clustering_loss + \
+               self.sep_loss_weight * separation_loss + self.l1_loss_weight * l1
         accuracy = acc_score(preds, batch.label)
 
         return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy)

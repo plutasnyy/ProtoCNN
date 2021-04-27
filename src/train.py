@@ -58,8 +58,10 @@ import numpy as np
                  help='Function used to change distance to similarity, linear is -d, log is lod((d+1)/d')
 @optgroup.option('--pc-separation-threshold', default=0, type=float,
                  help='After that distance the seperation cost is ignored, optimal value between 0-2')
+@optgroup.option('--pc-ce-loss-weight', default=1, type=float, help='Weight of cross entropy loss')
 @optgroup.option('--pc-cls-loss-weight', default=0, type=float, help='Weight of clustering loss')
 @optgroup.option('--pc-sep-loss-weight', default=0, type=float, help='Weight of separation loss')
+@optgroup.option('--pc-l1-loss-weight', default=0, type=float, help='Weight of l1 loss')
 @optgroup.option('--pc-number-of-prototypes', default=None, type=int,
                  help='Number of prototypes, if None or -1 the default value from configs.py '
                       'for each dataset will be chosen')
