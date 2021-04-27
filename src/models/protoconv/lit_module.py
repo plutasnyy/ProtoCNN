@@ -1,4 +1,5 @@
 import math
+from copy import copy
 
 import pytorch_lightning as pl
 import torch
@@ -233,6 +234,20 @@ class ProtoConvLitModule(pl.LightningModule):
             'optimizer': optimizer,
             'lr_scheduler': lr_scheduler,
         }
+
+    @staticmethod
+    def calc_number_of_epochs_with_projection(epochs, period):
+        """
+        prototype projection is done as 'dry' epoch, so the number of max_epochs shoudl be increased
+        """
+        if period <= 1:
+            return epochs
+        epochs_to_do, epoch_iterator = copy(epochs), 0
+        while epochs_to_do > 0:
+            if (epoch_iterator + 1) % period != 0:
+                epochs_to_do -= 1
+            epoch_iterator += 1
+        return epoch_iterator
 
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
