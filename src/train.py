@@ -2,6 +2,8 @@ import os
 
 from torchtext.vocab import FastText
 
+from models.protoconv.lit_module import ProtoConvLitModule
+
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from configparser import ConfigParser
@@ -107,8 +109,11 @@ def train(**args):
         i = str(fold_id)
 
         period = 1
-        if params.pc_project_prototypes_every_n > 0 and params.model == 'protconv':
+        if params.pc_project_prototypes_every_n > 0 and params.model == 'protoconv':
             period = params.pc_project_prototypes_every_n
+            params.epoch = ProtoConvLitModule.calc_number_of_epochs_with_projection(params.epoch, period)
+            logger.log_hyperparams({'true_epoch': params.epoch})
+
         model_checkpoint = ModelCheckpoint(
             filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
             save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=period
