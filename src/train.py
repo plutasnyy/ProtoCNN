@@ -2,8 +2,6 @@ import os
 
 from torchtext.vocab import FastText
 
-from models.protoconv.lit_module import ProtoConvLitModule
-
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from configparser import ConfigParser
@@ -23,6 +21,7 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
 from models.protoconv.visualize_prototypes import visualize_model
+from models.protoconv.lit_module import ProtoConvLitModule
 from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes
 
 import numpy as np
