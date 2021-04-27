@@ -1,3 +1,5 @@
+from enum import Enum, auto
+
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizerFast
 
 from models.cnn.lit_module import CNNLitModule
@@ -31,3 +33,20 @@ model_to_litmodule = {
 }
 
 
+class AutoName(Enum):
+    def _generate_next_value_(name, start, count, last_values):
+        return name
+
+
+class Models(AutoName):
+    distilbert = auto()
+    cnn = auto()
+    protoconv = auto()
+
+
+class Datasets(AutoName):
+    amazon = auto()
+    hotel = auto()
+    imdb = auto()
+    yelp = auto()
+    rottentomatoes = auto()

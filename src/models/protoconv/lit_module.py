@@ -238,7 +238,7 @@ class ProtoConvLitModule(pl.LightningModule):
     @staticmethod
     def calc_number_of_epochs_with_projection(epochs, period):
         """
-        prototype projection is done as 'dry' epoch, so the number of max_epochs shoudl be increased
+        prototype projection is done as 'dry' epoch, so the number of max_epochs should be increased
         """
         if period <= 1:
             return epochs

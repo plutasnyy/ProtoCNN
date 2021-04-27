@@ -22,7 +22,7 @@ from pytorch_lightning.loggers.base import DummyLogger
 
 from models.protoconv.visualize_prototypes import visualize_model
 from models.protoconv.lit_module import ProtoConvLitModule
-from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes
+from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes, Models
 
 import numpy as np
 
@@ -38,8 +38,7 @@ import numpy as np
 @optgroup.group('TRAINING conf')
 @optgroup.option('--model', type=click.Choice(['distilbert', 'cnn', 'protoconv']), required=True,
                  help='Which model should be used')
-@optgroup.option('--data-set', required=True,
-                 type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']))
+@optgroup.option('--data-set', required=True, type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']))
 @optgroup.option('--epoch', default=30, type=int, help='Number of epochs')
 @optgroup.option('--fold', default=1, type=int, help='Whenever train using one split, or 5-fold')
 @optgroup.option('-lr', default=2e-5, type=float, help='Learning rate')
@@ -81,10 +80,11 @@ def train(**args):
     config = ConfigParser()
     config.read('config.ini')
 
-    if params.model == 'distilbert' and params.tokenizer_length is None:
+    if Models(params.model) == Models.distilbert and params.tokenizer_length is None:
         params.tokenizer_length = dataset_tokens_length[params.data_set]
 
-    if params.model == 'protoconv' and (params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
+    if Models(params.model) == Models.protoconv and (
+            params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
         params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
 
     logger = DummyLogger()
@@ -101,14 +101,14 @@ def train(**args):
     n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
     # log_splits(n_splits, logger)
 
-    embeddings = FastText('en', cache=params.cache) if params.model != 'distilbert' else None
+    embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
     best_models_scores = []
     for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
         i = str(fold_id)
 
         period = 1
-        if params.pc_project_prototypes_every_n > 0 and params.model == 'protoconv':
+        if params.pc_project_prototypes_every_n > 0 and Models(params.model) == Models.protoconv:
             period = params.pc_project_prototypes_every_n
             params.epoch = ProtoConvLitModule.calc_number_of_epochs_with_projection(params.epoch, period)
             logger.log_hyperparams({'true_epoch': params.epoch})
@@ -137,7 +137,8 @@ def train(**args):
             best_models_scores.append(model_checkpoint.best_model_score.tolist())
             logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-        if params.model == 'protoconv' and model_checkpoint.best_model_path and params.pc_visualize and fold_id == 0:
+        if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
+                and params.pc_visualize and fold_id == 0:
             best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
             visualization_path = f'prototypes_visualization_{fold_id}.html'
             visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
