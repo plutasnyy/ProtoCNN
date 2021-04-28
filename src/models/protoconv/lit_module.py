@@ -166,7 +166,7 @@ class ProtoConvLitModule(pl.LightningModule):
         distances_matrix_no_zeros = distances_matrix + torch.eye(prototypes.shape[0]).to(prototypes.device) * max_value
         min_distances, _ = torch.min(distances_matrix_no_zeros, dim=1)
         mean_separation_distance = torch.mean(min_distances)
-        loss = max(threshold-mean_separation_distance, 0)
+        loss = torch.max(threshold-mean_separation_distance, 0)
         return loss
 
     @staticmethod
