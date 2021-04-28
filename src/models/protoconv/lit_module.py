@@ -131,7 +131,8 @@ class ProtoConvLitModule(pl.LightningModule):
 
         cross_entropy = self.loss(outputs.logits, batch.label)
         clustering_loss = self.calculate_clustering_loss(outputs)
-        separation_loss = self.calculate_separation_loss(self.prototypes.prototypes, alpha=self.separation_threshold)
+        separation_loss = self.calculate_separation_loss(self.prototypes.prototypes,
+                                                         threshold=self.separation_threshold)
         l1 = self.fc1.weight.norm(p=1)
         loss = self.ce_loss_weight * cross_entropy + self.cls_loss_weight * clustering_loss + \
                self.sep_loss_weight * separation_loss + self.l1_loss_weight * l1
@@ -166,7 +167,7 @@ class ProtoConvLitModule(pl.LightningModule):
         distances_matrix_no_zeros = distances_matrix + torch.eye(prototypes.shape[0]).to(prototypes.device) * max_value
         min_distances, _ = torch.min(distances_matrix_no_zeros, dim=1)
         mean_separation_distance = torch.mean(min_distances)
-        loss = torch.max(threshold-mean_separation_distance, 0)
+        loss, _ = torch.max(threshold - mean_separation_distance, 0)
         return loss
 
     @staticmethod
