@@ -56,7 +56,7 @@ import numpy as np
 @optgroup.group('PROTOCONV conf')
 @optgroup.option('--pc-sim-func', required=False, type=click.Choice(['linear', 'log']), default='log',
                  help='Function used to change distance to similarity, linear is -d, log is lod((d+1)/d')
-@optgroup.option('--pc-separation-threshold', default=0, type=float,
+@optgroup.option('--pc-separation-threshold', default=10000, type=float,
                  help='After that distance the seperation cost is ignored, optimal value between 0-2')
 @optgroup.option('--pc-ce-loss-weight', default=1, type=float, help='Weight of cross entropy loss')
 @optgroup.option('--pc-cls-loss-weight', default=0, type=float, help='Weight of clustering loss')
