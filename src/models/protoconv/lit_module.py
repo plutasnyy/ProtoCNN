@@ -154,10 +154,10 @@ class ProtoConvLitModule(pl.LightningModule):
         return x
 
     @staticmethod
-    def calculate_separation_loss(prototypes, alpha):  # [prototypes, latent_size, 1]
+    def calculate_separation_loss(prototypes, threshold):  # [prototypes, latent_size, 1]
         """
         :param prototypes:
-        :param alpha: the threshold, after that higher distances are ignored: distance = max(distance,alpha)
+        :param threshold: the threshold, after that higher distances are ignored: distance = max(threshold-separation,0)
         """
         # TODO distance is not squared, clustering loss uses squared distances
         prot = prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
@@ -166,8 +166,7 @@ class ProtoConvLitModule(pl.LightningModule):
         distances_matrix_no_zeros = distances_matrix + torch.eye(prototypes.shape[0]).to(prototypes.device) * max_value
         min_distances, _ = torch.min(distances_matrix_no_zeros, dim=1)
         mean_separation_distance = torch.mean(min_distances)
-        clip_dist = torch.clip(mean_separation_distance, max=alpha)
-        loss = -clip_dist
+        loss = max(threshold-mean_separation_distance, 0)
         return loss
 
     @staticmethod
