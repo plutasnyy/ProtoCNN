@@ -26,6 +26,15 @@ dataset_to_number_of_prototypes = {
     'hotel': 48
 }
 
+dataset_to_separation_loss = {
+    'imdb': 0.005,
+    'amazon': 0.005,
+    'yelp': 0.01,
+    'rottentomatoes': 0.01,
+    'hotel': 0.1
+}
+
+
 model_to_litmodule = {
     'distilbert': TransformerLitModule,
     'cnn': CNNLitModule,

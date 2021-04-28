@@ -22,7 +22,8 @@ from pytorch_lightning.loggers.base import DummyLogger
 
 from models.protoconv.visualize_prototypes import visualize_model
 from models.protoconv.lit_module import ProtoConvLitModule
-from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes, Models
+from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes, Models, \
+    dataset_to_separation_loss
 
 import numpy as np
 
@@ -58,9 +59,9 @@ import numpy as np
                  help='Function used to change distance to similarity, linear is -d, log is lod((d+1)/d')
 @optgroup.option('--pc-separation-threshold', default=10000, type=float,
                  help='After that distance the seperation cost is ignored, optimal value between 0-2')
-@optgroup.option('--pc-ce-loss-weight', default=1, type=float, help='Weight of cross entropy loss')
+@optgroup.option('--pc-ce-loss-weight', default=None, type=float, help='Weight of cross entropy loss')
 @optgroup.option('--pc-cls-loss-weight', default=0, type=float, help='Weight of clustering loss')
-@optgroup.option('--pc-sep-loss-weight', default=0, type=float, help='Weight of separation loss')
+@optgroup.option('--pc-sep-loss-weight', default=None, type=float, help='Weight of separation loss')
 @optgroup.option('--pc-l1-loss-weight', default=0, type=float, help='Weight of l1 loss')
 @optgroup.option('--pc-number-of-prototypes', default=None, type=int,
                  help='Number of prototypes, if None or -1 the default value from configs.py '
@@ -88,6 +89,14 @@ def train(**args):
     if Models(params.model) == Models.protoconv and (
             params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
         params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
+
+    if Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None:
+        params.pc_sep_loss_weight = dataset_to_separation_loss[params.data_set]
+
+    if Models(params.model) == Models.protoconv and params.pc_ce_loss_weight is None:
+        weight = 1 - (params.pc_cls_loss_weight + params.pc_sep_loss_weight + params.pc_l1_loss_weight)
+        assert weight > 0, f'Weight {weight} of cross entropy loss cannot be less or equal to 0'
+        params.pc_ce_loss_weight = weight
 
     logger = DummyLogger()
     if params.logger:
