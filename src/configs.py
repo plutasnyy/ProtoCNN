@@ -29,9 +29,9 @@ dataset_to_number_of_prototypes = {
 dataset_to_separation_loss = {
     'imdb': 0.005,
     'amazon': 0.005,
-    'yelp': 0.01,
+    'yelp': 0.1,
     'rottentomatoes': 0.01,
-    'hotel': 0.1
+    'hotel': 0.05
 }
 
 
