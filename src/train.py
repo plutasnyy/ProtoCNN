@@ -20,7 +20,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, Ea
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.loggers.base import DummyLogger
 
-from models.protoconv.visualize_prototypes import visualize_model
 from models.protoconv.lit_module import ProtoConvLitModule
 from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number_of_prototypes, Models, \
     dataset_to_separation_loss
