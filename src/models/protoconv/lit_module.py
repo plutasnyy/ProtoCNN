@@ -58,8 +58,8 @@ class ProtoConvLitModule(pl.LightningModule):
         ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=1,
-                                        stride=self.conv_stride, padding_mode="reflect")
+        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
+                                        padding=self.conv_padding, stride=self.conv_stride, padding_mode="reflect")
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
