@@ -110,7 +110,7 @@ def train(**args):
 
     df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
     n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
-    # log_splits(n_splits, logger)
+    log_splits(n_splits, logger)
 
     embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
@@ -148,12 +148,12 @@ def train(**args):
             best_models_scores.append(model_checkpoint.best_model_score.tolist())
             logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-        if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
-                and params.pc_visualize and fold_id == 0:
-            best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-            visualization_path = f'prototypes_visualization_{fold_id}.html'
-            visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
-            logger.experiment.log_asset(visualization_path)
+        # if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
+        #         and params.pc_visualize and fold_id == 0:
+        #     best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
+        #     visualization_path = f'prototypes_visualization_{fold_id}.html'
+        #     visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
+        #     logger.experiment.log_asset(visualization_path)
 
     if len(best_models_scores) >= 1:
         avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(np.std(np.array(best_models_scores)))
@@ -164,6 +164,8 @@ def train(**args):
             'std_best_scores': std_best,
             'table_entry': table_entry
         })
+
+    logger.experiment.end()
 
 
 if __name__ == '__main__':

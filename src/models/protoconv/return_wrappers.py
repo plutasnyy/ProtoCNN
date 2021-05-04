@@ -5,10 +5,13 @@ LossesWrapper = namedtuple('LossesWrapper', 'loss cross_entropy clustering_loss 
 
 
 class PrototypeRepresentation:
-    def __init__(self, best_distance, distances, X):
+    def __init__(self, best_distance, distances, tokens, prototype_weight, enabled=1, absolute_id=None):
         self.best_patch_distance = best_distance
         self.patch_distances = distances
-        self.X = X
+        self.tokens = tokens
+        self.prototype_weight = prototype_weight
+        self.enabled = enabled
+        self.absolute_id = absolute_id
 
     def __lt__(self, other):
         return self.best_patch_distance > other.best_patch_distance  # max-heap
