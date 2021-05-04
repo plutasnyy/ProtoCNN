@@ -26,8 +26,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
-                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_stride=1, pc_filter_size=3, pc_prototypes_init='rand',
-                 vocab_itos=None, *args, **kwargs):
+                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_stride=1, pc_conv_filter_size=3, pc_conv_padding=1,
+                 pc_prototypes_init='rand', vocab_itos=None, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -45,8 +45,9 @@ class ProtoConvLitModule(pl.LightningModule):
         self.l1_loss_weight = pc_l1_loss_weight
         self.number_of_prototypes: int = pc_number_of_prototypes
         self.conv_filters: int = pc_conv_filters
-        self.conv_stride: int = pc_stride
-        self.filter_size = pc_filter_size
+        self.conv_stride: int = pc_conv_stride
+        self.conv_filter_size = pc_conv_filter_size
+        self.conv_padding = pc_conv_padding
         self.prototypes_init = pc_prototypes_init
 
         self.max_number_of_prototypes = 100
@@ -57,7 +58,7 @@ class ProtoConvLitModule(pl.LightningModule):
         ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=0,
+        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.filter_size, padding=1,
                                         stride=self.conv_stride, padding_mode="reflect")
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
                                          number_of_prototypes=self.max_number_of_prototypes,
