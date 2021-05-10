@@ -1,4 +1,5 @@
 import os
+import warnings
 
 from torchtext.vocab import FastText
 
@@ -26,6 +27,8 @@ from configs import dataset_tokens_length, model_to_litmodule, dataset_to_number
 
 import numpy as np
 
+warnings.simplefilter("ignore")
+
 
 @click.command()
 @optgroup.group('COMET ML conf', help='The configuration of logging connection')
@@ -38,7 +41,8 @@ import numpy as np
 @optgroup.group('TRAINING conf')
 @optgroup.option('--model', type=click.Choice(['distilbert', 'cnn', 'protoconv']), required=True,
                  help='Which model should be used')
-@optgroup.option('--data-set', required=True, type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']))
+@optgroup.option('--datasets', required=True, multiple=True,
+                 type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes', 'all']))
 @optgroup.option('--epoch', default=30, type=int, help='Number of epochs')
 @optgroup.option('--fold', default=1, type=int, help='Whenever train using one split, or 5-fold')
 @optgroup.option('-lr', default=2e-5, type=float, help='Learning rate')
@@ -78,94 +82,102 @@ import numpy as np
 def train(**args):
     params = EasyDict(args)
     params.gpu = int(params.gpu)
-    seed_everything(params.seed)
 
     config = ConfigParser()
     config.read('config.ini')
 
-    if Models(params.model) == Models.distilbert and params.tokenizer_length is None:
-        params.tokenizer_length = dataset_tokens_length[params.data_set]
+    if params.datasets == ['all']:
+        params.datasets = ['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes']
 
-    if Models(params.model) == Models.protoconv and (
-            params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
-        params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
+    for dataset in params.datasets:
+        params.data_set = dataset
+        seed_everything(params.seed)
 
-    if Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None:
-        params.pc_sep_loss_weight = dataset_to_separation_loss[params.data_set]
+        if Models(params.model) == Models.distilbert and params.tokenizer_length is None:
+            params.tokenizer_length = dataset_tokens_length[params.data_set]
 
-    if Models(params.model) == Models.protoconv and params.pc_ce_loss_weight is None:
-        weight = 1 - (params.pc_cls_loss_weight + params.pc_sep_loss_weight + params.pc_l1_loss_weight)
-        assert weight > 0, f'Weight {weight} of cross entropy loss cannot be less or equal to 0'
-        params.pc_ce_loss_weight = weight
+        if Models(params.model) == Models.protoconv and (
+                params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
+            params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
 
-    logger = DummyLogger()
-    if params.logger:
-        comet_config = EasyDict(config['cometml'])
-        project_name = params.project_name if params.project_name else comet_config.projectname
-        logger = CometLogger(api_key=comet_config.apikey, project_name=project_name, workspace=comet_config.workspace)
+        if Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None:
+            params.pc_sep_loss_weight = dataset_to_separation_loss[params.data_set]
 
-    # logger.experiment.log_code(folder='src')
-    logger.log_hyperparams(params)
-    base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
+        if Models(params.model) == Models.protoconv and params.pc_ce_loss_weight is None:
+            weight = 1 - (params.pc_cls_loss_weight + params.pc_sep_loss_weight + params.pc_l1_loss_weight)
+            assert weight > 0, f'Weight {weight} of cross entropy loss cannot be less or equal to 0'
+            params.pc_ce_loss_weight = weight
 
-    df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
-    n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
-    log_splits(n_splits, logger)
+        logger = DummyLogger()
+        if params.logger:
+            comet_config = EasyDict(config['cometml'])
+            project_name = params.project_name if params.project_name else comet_config.projectname
+            logger = CometLogger(api_key=comet_config.apikey, project_name=project_name,
+                                 workspace=comet_config.workspace)
 
-    embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
+        # logger.experiment.log_code(folder='src')
+        logger.log_hyperparams(params)
+        base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
-    best_models_scores = []
-    for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
-        i = str(fold_id)
+        df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
+        n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
+        log_splits(n_splits, logger)
 
-        period = 1
-        if params.pc_project_prototypes_every_n > 0 and Models(params.model) == Models.protoconv:
-            period = params.pc_project_prototypes_every_n
-            params.epoch = ProtoConvLitModule.calc_number_of_epochs_with_projection(params.epoch, period)
-            logger.log_hyperparams({'true_epoch': params.epoch})
+        embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
-        model_checkpoint = ModelCheckpoint(
-            filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-            save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=period
-        )
-        early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=7, verbose=True, mode='min', min_delta=0.005)
-        callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
+        best_models_scores = []
+        for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
+            i = str(fold_id)
 
-        lit_module = model_to_litmodule[params.model]
-        train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
-        model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id,
-                                                                             embeddings)
+            period = 1
+            if params.pc_project_prototypes_every_n > 0 and Models(params.model) == Models.protoconv:
+                period = params.pc_project_prototypes_every_n
+                params.epoch = ProtoConvLitModule.calc_number_of_epochs_with_projection(params.epoch, period)
+                logger.log_hyperparams({'true_epoch': params.epoch})
 
-        trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
-                          gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
-        trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
-        trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
+            model_checkpoint = ModelCheckpoint(
+                filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
+                save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=period
+            )
+            early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=7, verbose=True, mode='min', min_delta=0.005)
+            callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
-        for absolute_path in model_checkpoint.best_k_models.keys():
-            logger.experiment.log_model(Path(absolute_path).name, absolute_path)
+            lit_module = model_to_litmodule[params.model]
+            train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
+            model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id,
+                                                                                 embeddings)
 
-        if model_checkpoint.best_model_score:
-            best_models_scores.append(model_checkpoint.best_model_score.tolist())
-            logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
+            trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
+                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
+            trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
+            trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 
-        # if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
-        #         and params.pc_visualize and fold_id == 0:
-        #     best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-        #     visualization_path = f'prototypes_visualization_{fold_id}.html'
-        #     visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
-        #     logger.experiment.log_asset(visualization_path)
+            for absolute_path in model_checkpoint.best_k_models.keys():
+                logger.experiment.log_model(Path(absolute_path).name, absolute_path)
 
-    if len(best_models_scores) >= 1:
-        avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(np.std(np.array(best_models_scores)))
-        table_entry = f'{avg_best:.3f} ($\pm${std_best:.3f})'
+            if model_checkpoint.best_model_score:
+                best_models_scores.append(model_checkpoint.best_model_score.tolist())
+                logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-        logger.log_hyperparams({
-            'avg_best_scores': avg_best,
-            'std_best_scores': std_best,
-            'table_entry': table_entry
-        })
+            # if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
+            #         and params.pc_visualize and fold_id == 0:
+            #     best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
+            #     visualization_path = f'prototypes_visualization_{fold_id}.html'
+            #     visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
+            #     logger.experiment.log_asset(visualization_path)
 
-    logger.experiment.end()
+        if len(best_models_scores) >= 1:
+            avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(
+                np.std(np.array(best_models_scores)))
+            table_entry = f'{avg_best:.3f} ($\pm${std_best:.3f})'
+
+            logger.log_hyperparams({
+                'avg_best_scores': avg_best,
+                'std_best_scores': std_best,
+                'table_entry': table_entry
+            })
+
+        logger.experiment.end()
 
 
 if __name__ == '__main__':
