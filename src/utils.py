@@ -3,6 +3,9 @@ from pathlib import Path
 import dill
 import pandas as pd
 import torch
+import html
+
+from IPython.core.display import display, HTML
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torchtext.data import Dataset
 
@@ -69,3 +72,11 @@ def get_pad_to_min_len_fn(min_length):
         return batch
 
     return pad_to_min_len
+
+
+def plot_html(f):
+    display(HTML(f))
+
+
+def html_escape(text):
+    return html.escape(text)
