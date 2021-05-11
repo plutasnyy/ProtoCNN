@@ -87,23 +87,29 @@ def train(**args):
     config.read('config.ini')
 
     if params.datasets == ['all']:
-        params.datasets = ['amazon', 'imdb', 'yelp', 'hotel', 'rottentomatoes']
+        params.datasets = ['yelp', 'amazon', 'imdb', 'hotel', 'rottentomatoes']
+
+    is_tokenizer_length_dataset_specific = Models(params.model) == Models.distilbert and params.tokenizer_length is None
+    is_number_prototypes_dataset_specific = Models(params.model) == Models.protoconv and (
+            params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1)
+    is_sep_loss_dataset_specific = Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None
+    if_ce_loss_dataset_specific = Models(params.model) == Models(params.model) == Models.protoconv and \
+                                  params.pc_ce_loss_weight is None
 
     for dataset in params.datasets:
         params.data_set = dataset
         seed_everything(params.seed)
 
-        if Models(params.model) == Models.distilbert and params.tokenizer_length is None:
+        if is_tokenizer_length_dataset_specific:
             params.tokenizer_length = dataset_tokens_length[params.data_set]
 
-        if Models(params.model) == Models.protoconv and (
-                params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1):
+        if is_number_prototypes_dataset_specific:
             params.pc_number_of_prototypes = dataset_to_number_of_prototypes[params.data_set]
 
-        if Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None:
+        if is_sep_loss_dataset_specific:
             params.pc_sep_loss_weight = dataset_to_separation_loss[params.data_set]
 
-        if Models(params.model) == Models.protoconv and params.pc_ce_loss_weight is None:
+        if if_ce_loss_dataset_specific:
             weight = 1 - (params.pc_cls_loss_weight + params.pc_sep_loss_weight + params.pc_l1_loss_weight)
             assert weight > 0, f'Weight {weight} of cross entropy loss cannot be less or equal to 0'
             params.pc_ce_loss_weight = weight

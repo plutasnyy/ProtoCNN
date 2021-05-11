@@ -8,12 +8,12 @@ import numpy as np
 import torch
 from tqdm.contrib import tenumerate
 
-from models.protoconv.return_wrappers import PrototypeRepresentation, PrototypeDetailPrediction
 from utils import html_escape
 
 
 class DataVisualizer:
     def __init__(self, model, train_loader, vocab_itos=None):
+        from models.protoconv.return_wrappers import PrototypeRepresentation
         self.prototypes: List[List[PrototypeRepresentation]] = []
         self.model = model
         self.train_loader = train_loader
@@ -33,6 +33,8 @@ class DataVisualizer:
 
     @torch.no_grad()
     def find_prototypes_representation(self, k_most_similar=3):
+        from models.protoconv.return_wrappers import PrototypeDetailPrediction
+        from models.protoconv.return_wrappers import PrototypeRepresentation
         heaps = [[] for _ in range(self.number_of_prototypes)]
         for example_id, (X, y) in tenumerate(self.train_loader, total=len(self.train_loader)):
             outputs: PrototypeDetailPrediction = self.model(X)
@@ -103,6 +105,8 @@ class DataVisualizer:
 
     @torch.no_grad()
     def predict(self, tokens, true_label=None, output_file_path=None):
+        from models.protoconv.return_wrappers import PrototypeRepresentation
+        from models.protoconv.return_wrappers import PrototypeDetailPrediction
         output: PrototypeDetailPrediction = self.model(tokens)
 
         closest_prototypes: List[PrototypeRepresentation] = list(self.filter_most_similar(self.prototypes))
@@ -182,7 +186,7 @@ class DataVisualizer:
         return self.model.prototypes.prototypes.shape[0]
 
     @staticmethod
-    def filter_enabled_prototypes(prototypes_representations: List[List[PrototypeRepresentation]]):
+    def filter_enabled_prototypes(prototypes_representations):
         return filter(lambda p: p[0].enabled, prototypes_representations)
 
     @staticmethod
