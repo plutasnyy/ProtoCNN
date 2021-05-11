@@ -87,7 +87,7 @@ def train(**args):
     config.read('config.ini')
 
     if params.datasets == ['all']:
-        params.datasets = ['yelp', 'amazon', 'imdb', 'hotel', 'rottentomatoes']
+        params.datasets = ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']
 
     is_tokenizer_length_dataset_specific = Models(params.model) == Models.distilbert and params.tokenizer_length is None
     is_number_prototypes_dataset_specific = Models(params.model) == Models.protoconv and (
