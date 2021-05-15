@@ -91,12 +91,14 @@ def train(**args):
     if params.datasets == ['all']:
         params.datasets = ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']
 
-    is_tokenizer_length_dataset_specific = Models(params.model) == Models.distilbert and params.tokenizer_length is None
+    is_tokenizer_length_dataset_specific = Models(params.model) == Models.distilbert and (
+                params.tokenizer_length is None or params.tokenizer_length)
     is_number_prototypes_dataset_specific = Models(params.model) == Models.protoconv and (
-            params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1)
-    is_sep_loss_dataset_specific = Models(params.model) == Models.protoconv and params.pc_sep_loss_weight is None
-    if_ce_loss_dataset_specific = Models(params.model) == Models(params.model) == Models.protoconv and \
-                                  params.pc_ce_loss_weight is None
+                params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1)
+    is_sep_loss_dataset_specific = Models(params.model) == Models.protoconv and (
+                params.pc_sep_loss_weight is None or params.pc_sep_loss_weight == -1)
+    if_ce_loss_dataset_specific = Models(params.model) == Models.protoconv and (
+                params.pc_ce_loss_weight is None or params.pc_ce_loss_weight == -1)
 
     for dataset in params.datasets:
         params.data_set = dataset
