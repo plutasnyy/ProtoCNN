@@ -96,7 +96,8 @@ class ProtoConvLitModule(pl.LightningModule):
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
         if (self.trainer.early_stopping_callback.wait_count + 1) % 3 == 0:
-            self._add_prototypes(3)
+            number_protos_to_add = max(5, int(self.current_prototypes_number * 0.2))
+            self._add_prototypes(number_protos_to_add)
 
         if self._is_projection_prototype_epoch():
             self.prototype_projection.reset(device=self.device)
