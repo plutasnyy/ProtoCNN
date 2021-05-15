@@ -95,6 +95,9 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
+        if (self.trainer.early_stopping_callback.wait_count + 1) % 3 == 0:
+            self._add_prototypes(3)
+
         if self._is_projection_prototype_epoch():
             self.prototype_projection.reset(device=self.device)
 
@@ -120,17 +123,13 @@ class ProtoConvLitModule(pl.LightningModule):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
             self._zeroing_disabled_prototypes()
+            self._remove_non_important_prototypes()
+            self._merge_similar_prototypes()
             print('The prototypes were projected')
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
         self.log_all_metrics('val', losses)
-
-    # @torch.no_grad()
-    # def on_validation_epoch_end(self, *args, **kwargs):
-    #     if self._is_projection_prototype_epoch():
-    #         self._remove_non_important_prototypes()
-    #         self._merge_similar_prototypes()
 
     def learning_step(self, batch, acc_score):
         outputs = self(batch.text)
@@ -154,8 +153,8 @@ class ProtoConvLitModule(pl.LightningModule):
         self.log(f'{stage}_sep_{self.fold_id}', losses.separation_loss, prog_bar=False)
         self.log(f'{stage}_l1_{self.fold_id}', losses.l1, prog_bar=False)
         self.log(f'{stage}_acc_{self.fold_id}', losses.accuracy, prog_bar=True, on_step=False, on_epoch=True)
-
-
+        self.log(f'number_of_prototypes_{self.fold_id}', self.current_prototypes_number, prog_bar=True, on_step=False,
+                 on_epoch=True)
 
     @staticmethod
     def _min_pooling(x):
@@ -192,6 +191,7 @@ class ProtoConvLitModule(pl.LightningModule):
         remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).tolist()
         if len(remove_ids) > 0:
             self._remove_prototypes(remove_ids)
+            print(f'Prototypes {remove_ids}, were removed')
 
     def _merge_similar_prototypes(self):
         used_prototypes = torch.where(self.enabled_prototypes_mask.data == 1)[0].tolist()
@@ -215,6 +215,11 @@ class ProtoConvLitModule(pl.LightningModule):
                     break
         if len(to_list) > 0:
             self._remove_prototypes(to_list, from_list)
+            print(f'Prototypes {to_list}, {from_list} were merged')
+
+    def _add_prototypes(self, quantity):
+        added_idx = [self._add_prototype() for _ in range(quantity)]
+        print(f'Added: {added_idx} prototypes')
 
     @torch.no_grad()
     def _remove_prototypes(self, prototype_ids: list, target_prototype_ids=None):
@@ -234,29 +239,29 @@ class ProtoConvLitModule(pl.LightningModule):
 
         if target_prototype_ids is not None:
             assert type(target_prototype_ids) == list
-            assert len(set(prototype_ids)&set(target_prototype_ids)) == 0
+            assert len(set(prototype_ids) & set(target_prototype_ids)) == 0
             assert len(prototype_ids) == len(target_prototype_ids)
             assert len(set(zero_indices) & set(target_prototype_ids)) == 0, \
                 f'You are trying to add value to prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
             self.fc1.weight.data[0, target_prototype_ids] += self.fc1.weight.data[0, prototype_ids]
 
+        self.current_prototypes_number -= len(prototype_ids)
         self.enabled_prototypes_mask[prototype_ids] = 0
-
         self._zeroing_disabled_prototypes()
-        print(f'Prototypes {prototype_ids} were removed')
 
     @torch.no_grad()
     def _add_prototype(self):
-        if self.current_prototypes_number < self.max_number_of_prototypes:
-            zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1)
-            new_prototype_id = zero_indices[0].item()
+        if self.current_prototypes_number == self.max_number_of_prototypes:
+            return None
+        zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1)
+        new_prototype_id = zero_indices[0].item()
 
-            std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
-            bound = math.sqrt(3.0) * std
-            self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
-            self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
-            self.current_prototypes_number += 1
-            print(f'Added new prototype, current number of prototypes: {self.prototypes.prototypes.shape[0]}')
+        std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
+        bound = math.sqrt(3.0) * std
+        self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
+        self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
+        self.current_prototypes_number += 1
+        return new_prototype_id
 
     @torch.no_grad()
     def _init_fc_layer(self):
