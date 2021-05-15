@@ -50,6 +50,9 @@ class ProtoConvLitModule(pl.LightningModule):
         self.conv_padding = pc_conv_padding
         self.prototypes_init = pc_prototypes_init
 
+        self.prototype_similarity_threshold = 3
+        self.prototype_importance_threshold = 0.001
+
         self.max_number_of_prototypes = 100
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
@@ -90,6 +93,7 @@ class ProtoConvLitModule(pl.LightningModule):
         logits = self.fc1(masked_similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
 
+    @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototype_projection.reset(device=self.device)
@@ -111,7 +115,8 @@ class ProtoConvLitModule(pl.LightningModule):
             prediction: PrototypeDetailPrediction = self(batch.text)
             self.prototype_projection.update(prediction)
 
-    def on_train_epoch_end(self, *args, **kwargs):
+    @torch.no_grad()
+    def on_validation_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
             self._zeroing_disabled_prototypes()
@@ -120,6 +125,12 @@ class ProtoConvLitModule(pl.LightningModule):
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
         self.log_all_metrics('val', losses)
+
+    # @torch.no_grad()
+    # def on_validation_epoch_end(self, *args, **kwargs):
+    #     if self._is_projection_prototype_epoch():
+    #         self._remove_non_important_prototypes()
+    #         self._merge_similar_prototypes()
 
     def learning_step(self, batch, acc_score):
         outputs = self(batch.text)
@@ -144,6 +155,8 @@ class ProtoConvLitModule(pl.LightningModule):
         self.log(f'{stage}_l1_{self.fold_id}', losses.l1, prog_bar=False)
         self.log(f'{stage}_acc_{self.fold_id}', losses.accuracy, prog_bar=True, on_step=False, on_epoch=True)
 
+
+
     @staticmethod
     def _min_pooling(x):
         x = -F.max_pool1d(-x, x.size(2))
@@ -156,7 +169,6 @@ class ProtoConvLitModule(pl.LightningModule):
         :param prototypes:
         :param threshold: the threshold, after that higher distances are ignored: distance = max(threshold-separation,0)
         """
-        # TODO distance is not squared, clustering loss uses squared distances
         prot = prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
         distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
         max_value = torch.max(distances_matrix) + 1
@@ -174,7 +186,38 @@ class ProtoConvLitModule(pl.LightningModule):
     def _is_projection_prototype_epoch(self):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
 
-    def _remove_prototypes(self, prototype_ids, target_prototype_ids=None):
+    def _remove_non_important_prototypes(self):
+        non_important_prototypes_idxs = (abs(self.fc1.weight[0]) <= self.prototype_importance_threshold) \
+                                        * self.enabled_prototypes_mask
+        remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).tolist()
+        if len(remove_ids) > 0:
+            self._remove_prototypes(remove_ids)
+
+    def _merge_similar_prototypes(self):
+        used_prototypes = torch.where(self.enabled_prototypes_mask.data == 1)[0].tolist()
+        prot = self.prototypes.prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
+        distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
+        argsorted = torch.argsort(distances_matrix, dim=1)
+
+        from_list, to_list = [], []
+        for prototype_idx in range(len(argsorted)):
+            if prototype_idx not in used_prototypes or prototype_idx in to_list + from_list:
+                continue
+            for target_proto_idx in range(len(argsorted[0])):
+                if target_proto_idx not in used_prototypes or prototype_idx == target_proto_idx or \
+                        target_proto_idx in to_list + from_list:
+                    continue
+                elif abs(distances_matrix[prototype_idx, target_proto_idx]) <= self.prototype_similarity_threshold:
+                    from_list.append(prototype_idx)
+                    to_list.append(target_proto_idx)
+                    break
+                else:
+                    break
+        if len(to_list) > 0:
+            self._remove_prototypes(to_list, from_list)
+
+    @torch.no_grad()
+    def _remove_prototypes(self, prototype_ids: list, target_prototype_ids=None):
         """
         :param prototype_ids: list IDs of prototypes to remove
         :param target_prototype_ids: When the 2 prototypes are almost identical, you don't just want to delete
@@ -183,45 +226,48 @@ class ProtoConvLitModule(pl.LightningModule):
         should remain unchanged (as long as the prototypes represented the classes in the same way). If the prototype
         is completely irrelevant (e.g. its weight in the FC layer is 0), simply remove it and let this parameter be None
         """
-        with torch.no_grad():
-            zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1).cpu().numpy()
+        zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1).tolist()
 
-            assert len(set(zero_indices) & set(prototype_ids)) == 0, \
-                f'You are trying to remove prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
+        assert type(prototype_ids) == list
+        assert len(set(zero_indices) & set(prototype_ids)) == 0, \
+            f'You are trying to remove prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
 
-            if target_prototype_ids is not None:
-                assert len(set(zero_indices) & set(target_prototype_ids)) == 0, \
-                    f'You are trying to add value to prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
-                self.fc1.weight.data[0, target_prototype_ids] += self.fc1.weight.data[0, prototype_ids]
+        if target_prototype_ids is not None:
+            assert type(target_prototype_ids) == list
+            assert len(set(prototype_ids)&set(target_prototype_ids)) == 0
+            assert len(prototype_ids) == len(target_prototype_ids)
+            assert len(set(zero_indices) & set(target_prototype_ids)) == 0, \
+                f'You are trying to add value to prototypes that dont exist: {set(zero_indices) & set(prototype_ids)}'
+            self.fc1.weight.data[0, target_prototype_ids] += self.fc1.weight.data[0, prototype_ids]
 
-            self.enabled_prototypes_mask[prototype_ids] = 0
+        self.enabled_prototypes_mask[prototype_ids] = 0
 
         self._zeroing_disabled_prototypes()
         print(f'Prototypes {prototype_ids} were removed')
 
+    @torch.no_grad()
     def _add_prototype(self):
         if self.current_prototypes_number < self.max_number_of_prototypes:
-            with torch.no_grad():
-                zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1)
-                new_prototype_id = zero_indices[0].item()
+            zero_indices = torch.nonzero(self.enabled_prototypes_mask == 0, as_tuple=False).squeeze(1)
+            new_prototype_id = zero_indices[0].item()
 
-                std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
-                bound = math.sqrt(3.0) * std
-                self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
-                self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
+            std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number + 1)
+            bound = math.sqrt(3.0) * std
+            self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
+            self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
             self.current_prototypes_number += 1
             print(f'Added new prototype, current number of prototypes: {self.prototypes.prototypes.shape[0]}')
 
+    @torch.no_grad()
     def _init_fc_layer(self):
         std = calculate_gain('leaky_relu', math.sqrt(5)) / math.sqrt(self.current_prototypes_number)
         bound = math.sqrt(3.0) * std
-        with torch.no_grad():
-            self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
+        self.fc1.weight.uniform_(-bound, bound)  # kaiming_uniform_
 
+    @torch.no_grad()
     def _zeroing_disabled_prototypes(self):
-        with torch.no_grad():
-            self.prototypes.prototypes.data[~self.enabled_prototypes_mask.bool()] *= 0
-            self.fc1.weight.data[:, ~self.enabled_prototypes_mask.bool()] *= 0
+        self.prototypes.prototypes.data[~self.enabled_prototypes_mask.bool()] *= 0
+        self.fc1.weight.data[:, ~self.enabled_prototypes_mask.bool()] *= 0
 
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)

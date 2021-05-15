@@ -13,7 +13,7 @@ from utils import html_escape
 
 class DataVisualizer:
     def __init__(self, model, train_loader, vocab_itos=None):
-        from models.protoconv.return_wrappers import PrototypeRepresentation
+        from models.protoconv.prototype_representation import PrototypeRepresentation
         self.prototypes: List[List[PrototypeRepresentation]] = []
         self.model = model
         self.train_loader = train_loader
@@ -34,7 +34,8 @@ class DataVisualizer:
     @torch.no_grad()
     def find_prototypes_representation(self, k_most_similar=3):
         from models.protoconv.return_wrappers import PrototypeDetailPrediction
-        from models.protoconv.return_wrappers import PrototypeRepresentation
+        from models.protoconv.prototype_representation import PrototypeRepresentation
+
         heaps = [[] for _ in range(self.number_of_prototypes)]
         for example_id, (X, y) in tenumerate(self.train_loader, total=len(self.train_loader)):
             outputs: PrototypeDetailPrediction = self.model(X)
@@ -104,11 +105,27 @@ class DataVisualizer:
         return text
 
     @torch.no_grad()
-    def predict(self, tokens, true_label=None, output_file_path=None):
-        from models.protoconv.return_wrappers import PrototypeRepresentation
-        from models.protoconv.return_wrappers import PrototypeDetailPrediction
-        output: PrototypeDetailPrediction = self.model(tokens)
+    def visualize_prototypes_as_short(self, output_file_path=None):
+        lines = []
+        for relative_id, prototype in enumerate(self.filter_used(self.prototypes)):
+            lines.append(f'{self.separator} <b>Prototype {relative_id + 1}</b> '
+                         f'weight {prototype.prototype_weight:.4f} {self.separator} <br>'
+                         f'{prototype.to_html_short(self.context)}<br>')
 
+        text = '<br>'.join(lines)
+
+        if output_file_path is not None:
+            with open(output_file_path, 'w') as f:
+                f.write(text)
+
+        return text
+
+    @torch.no_grad()
+    def predict(self, tokens, true_label=None, output_file_path=None):
+        from models.protoconv.return_wrappers import PrototypeDetailPrediction
+        from models.protoconv.prototype_representation import PrototypeRepresentation
+
+        output: PrototypeDetailPrediction = self.model(tokens)
         closest_prototypes: List[PrototypeRepresentation] = list(self.filter_most_similar(self.prototypes))
         similarities = self.local(self.model.dist_to_sim['log'](output.min_distances.squeeze(0)))
         evidence = (similarities * self.fc_weights)

@@ -16,7 +16,7 @@ prepare zip with data:
 
 Example run:
 ```bash
-sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 -c 8 --wrap "python3 src/train.py \
+sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 --wrap "python3 src/train.py \
     --run-name 'log sim' \
     --project-name 'mgr-bench' \
     --datasets 'hotel' \

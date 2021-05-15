@@ -20,18 +20,18 @@ dataset_tokens_length = {
 
 dataset_to_number_of_prototypes = {
     'imdb': 32,
-    'amazon': 32,
-    'yelp': 8,
-    'rottentomatoes': 48,
-    'hotel': 48
+    'amazon': 16,
+    'yelp': 32,
+    'rottentomatoes': 32,
+    'hotel': 32
 }
 
 dataset_to_separation_loss = {
-    'imdb': 0.005,
-    'amazon': 0.005,
-    'yelp': 0.1,
-    'rottentomatoes': 0.01,
-    'hotel': 0.05
+    'imdb': 0.01,
+    'amazon': 0.01,
+    'yelp': 0.005,
+    'rottentomatoes': 0.005,
+    'hotel': 0.005
 }
 
 
