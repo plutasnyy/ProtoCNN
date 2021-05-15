@@ -188,8 +188,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def _remove_non_important_prototypes(self):
         non_important_prototypes_idxs = (abs(self.fc1.weight[0]) <= self.prototype_importance_threshold) \
                                         * self.enabled_prototypes_mask
-        remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).tolist()
-        if len(remove_ids) > 0:
+        remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).squeeze(1).tolist()
+        if 0 < len(remove_ids) < self.current_prototypes_number:
             self._remove_prototypes(remove_ids)
             print(f'Prototypes {remove_ids}, were removed')
 
@@ -213,7 +213,8 @@ class ProtoConvLitModule(pl.LightningModule):
                     break
                 else:
                     break
-        if len(to_list) > 0:
+
+        if 0 < len(to_list) < self.current_prototypes_number:
             self._remove_prototypes(to_list, from_list)
             print(f'Prototypes {to_list}, {from_list} were merged')
 
@@ -260,6 +261,7 @@ class ProtoConvLitModule(pl.LightningModule):
         bound = math.sqrt(3.0) * std
         self.fc1.weight.data[0, new_prototype_id].uniform_(-bound, bound)
         self.prototypes.prototypes.data[new_prototype_id].uniform_(0, 1)
+        self.enabled_prototypes_mask[new_prototype_id] = 1
         self.current_prototypes_number += 1
         return new_prototype_id
 
