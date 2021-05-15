@@ -76,8 +76,6 @@ class ProtoConvLitModule(pl.LightningModule):
         self.valid_acc = pl.metrics.Accuracy()
         self.loss = BCEWithLogitsLoss()
 
-        self.last_train_losses = None
-
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
         x = self.conv1(x)
@@ -100,11 +98,9 @@ class ProtoConvLitModule(pl.LightningModule):
         if self._is_projection_prototype_epoch():
             self.project_prototypes(batch)
             loss = torch.tensor(.0, requires_grad=True)
-            losses = LossesWrapper(loss, 0, 0, 0, 0, 0) if self.last_train_losses is None else self.last_train_losses
         else:
             losses = self.learning_step(batch, self.train_acc)
             loss = losses.loss
-            self.last_train_losses = losses
             self.log_all_metrics('train', losses)
 
         return {'loss': loss}
