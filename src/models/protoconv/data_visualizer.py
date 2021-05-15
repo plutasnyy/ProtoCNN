@@ -88,7 +88,7 @@ class DataVisualizer:
         return text
 
     @torch.no_grad()
-    def visualize_prototypes_as_bold(self, output_file_path=None, short=False):
+    def visualize_prototypes_as_bold(self, output_file_path=None):
         lines = []
         for relative_id, prototype in enumerate(self.filter_used(self.prototypes)):
             lines.append(f'{self.separator} <b>Prototype {relative_id + 1}</b> '

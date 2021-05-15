@@ -3,6 +3,8 @@ import warnings
 
 from torchtext.vocab import FastText
 
+from models.protoconv.data_visualizer import DataVisualizer
+
 os.environ['COMET_DISABLE_AUTO_LOGGING'] = '1'
 
 from configparser import ConfigParser
@@ -150,8 +152,8 @@ def train(**args):
 
             lit_module = model_to_litmodule[params.model]
             train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
-            model, train_loader, val_loader = lit_module.from_params_and_dataset(train_df, valid_df, params, fold_id,
-                                                                                 embeddings)
+            model, train_loader, val_loader, *utils = lit_module.from_params_and_dataset(train_df, valid_df, params,
+                                                                                         fold_id, embeddings)
 
             trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
                               gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
@@ -165,12 +167,13 @@ def train(**args):
                 best_models_scores.append(model_checkpoint.best_model_score.tolist())
                 logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-            # if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
-            #         and params.pc_visualize and fold_id == 0:
-            #     best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-            #     visualization_path = f'prototypes_visualization_{fold_id}.html'
-            #     visualize_model(best_model, train_loader, k_most_similar=3, file_name=visualization_path)
-            #     logger.experiment.log_asset(visualization_path)
+            if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
+                    and params.pc_visualize and fold_id == 0:
+                best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
+                visualization_path = f'prototypes_visualization_{fold_id}.html'
+                data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
+                data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
+                logger.experiment.log_asset(visualization_path)
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(

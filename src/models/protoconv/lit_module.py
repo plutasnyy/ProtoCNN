@@ -27,7 +27,7 @@ class ProtoConvLitModule(pl.LightningModule):
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
                  pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_stride=1, pc_conv_filter_size=3, pc_conv_padding=1,
-                 pc_prototypes_init='rand', vocab_itos=None, *args, **kwargs):
+                 pc_prototypes_init='rand', *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -77,7 +77,6 @@ class ProtoConvLitModule(pl.LightningModule):
         self.loss = BCEWithLogitsLoss()
 
         self.last_train_losses = None
-        self.vocab_itos = vocab_itos
 
     def get_features(self, x):
         x = self.embedding(x).permute((0, 2, 1))
@@ -106,8 +105,8 @@ class ProtoConvLitModule(pl.LightningModule):
             losses = self.learning_step(batch, self.train_acc)
             loss = losses.loss
             self.last_train_losses = losses
+            self.log_all_metrics('train', losses)
 
-        self.log_all_metrics('train', losses)
         return {'loss': loss}
 
     def project_prototypes(self, batch):
@@ -258,8 +257,9 @@ class ProtoConvLitModule(pl.LightningModule):
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
         TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=params.gpu,
                                                             vectors=embeddings)
-        itos = TEXT.vocab.itos if params.pc_visualize else None
-        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,
-                    vocab_itos=itos, **params)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
-        return model, train_loader, val_loader
+        utils = {
+            'TEXT': TEXT
+        }
+        return model, train_loader, val_loader, utils
