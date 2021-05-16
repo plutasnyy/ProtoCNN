@@ -97,9 +97,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def on_train_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototype_projection.reset(device=self.device)
-        elif self.trainer.early_stopping_callback.wait_count + 1 >= 4:
-            number_protos_to_add = max(3, int(self.current_prototypes_number * 0.2))
-            self._add_prototypes(number_protos_to_add)
+        elif self.trainer.early_stopping_callback.wait_count + 1 >= 3:
+            self._add_prototypes(5)
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():

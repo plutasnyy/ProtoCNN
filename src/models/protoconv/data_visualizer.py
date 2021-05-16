@@ -130,6 +130,9 @@ class DataVisualizer:
         similarities = self.local(self.model.dist_to_sim['log'](output.min_distances.squeeze(0)))
         evidence = (similarities * self.fc_weights)
         sorting_indexes = np.argsort(evidence)
+        enabled_prototypes_indexes = [i for i in sorting_indexes if self.model.enabled_prototypes_mask[i]]
+        positive_protos_idxs = [[1, i] for i in enabled_prototypes_indexes[::-1] if evidence[i] > 0]
+        negative_protos_idxs = [[0, i] for i in enabled_prototypes_indexes if evidence[i] < 0]
 
         sum_of_evidence = {
             0: np.sum(evidence[self.fc_weights < 0]),
@@ -143,7 +146,7 @@ class DataVisualizer:
 
         VisRepresentation = namedtuple("VisRepresentation", "patch_text proto_text similarity weight evidence")
         prototypes_vis_per_class = defaultdict(list)
-        for class_id, prototype_idx in zip([0, 0, 0, 1, 1, 1], [*sorting_indexes[:3], *sorting_indexes[::-1][:3]]):
+        for class_id, prototype_idx in negative_protos_idxs+positive_protos_idxs:
             patch_center_id = np.argmin(self.local(output.distances)[0, prototype_idx, :])
             patch_words = words[patch_center_id - self.context:patch_center_id + self.context + 1]
             patch_words_str = html_escape(' '.join(patch_words))
