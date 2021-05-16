@@ -135,7 +135,7 @@ class DataVisualizer:
         negative_protos_idxs = [[0, i] for i in enabled_prototypes_indexes if evidence[i] < 0]
 
         sum_of_evidence = {
-            0: np.sum(evidence[self.fc_weights < 0]),
+            0: np.sum(evidence[self.fc_weights < 0]) * -1,
             1: np.sum(evidence[self.fc_weights > 0])
         }
 
@@ -146,7 +146,7 @@ class DataVisualizer:
 
         VisRepresentation = namedtuple("VisRepresentation", "patch_text proto_text similarity weight evidence")
         prototypes_vis_per_class = defaultdict(list)
-        for class_id, prototype_idx in negative_protos_idxs+positive_protos_idxs:
+        for class_id, prototype_idx in negative_protos_idxs[:3] + positive_protos_idxs[:3]:
             patch_center_id = np.argmin(self.local(output.distances)[0, prototype_idx, :])
             patch_words = words[patch_center_id - self.context:patch_center_id + self.context + 1]
             print(patch_words)
@@ -155,7 +155,7 @@ class DataVisualizer:
             multiplier = 1 if class_id else -1
             prototypes_vis_per_class[class_id].append(
                 VisRepresentation(patch_words_str, prototype_html, similarities[prototype_idx],
-                                  self.fc_weights[prototype_idx]*multiplier, evidence[prototype_idx]*multiplier)
+                                  self.fc_weights[prototype_idx] * multiplier, evidence[prototype_idx] * multiplier)
             )
 
         y_true_text = ''
