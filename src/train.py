@@ -92,13 +92,13 @@ def train(**args):
         params.datasets = ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']
 
     is_tokenizer_length_dataset_specific = Models(params.model) == Models.distilbert and (
-                params.tokenizer_length is None or params.tokenizer_length)
+            params.tokenizer_length is None or params.tokenizer_length)
     is_number_prototypes_dataset_specific = Models(params.model) == Models.protoconv and (
-                params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1)
+            params.pc_number_of_prototypes is None or params.pc_number_of_prototypes == -1)
     is_sep_loss_dataset_specific = Models(params.model) == Models.protoconv and (
-                params.pc_sep_loss_weight is None or params.pc_sep_loss_weight == -1)
+            params.pc_sep_loss_weight is None or params.pc_sep_loss_weight == -1)
     if_ce_loss_dataset_specific = Models(params.model) == Models.protoconv and (
-                params.pc_ce_loss_weight is None or params.pc_ce_loss_weight == -1)
+            params.pc_ce_loss_weight is None or params.pc_ce_loss_weight == -1)
 
     for dataset in params.datasets:
         params.data_set = dataset
@@ -135,7 +135,7 @@ def train(**args):
 
         embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
-        best_models_scores = []
+        best_models_scores, number_of_prototypes = [], []
         for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
             i = str(fold_id)
 
@@ -169,13 +169,17 @@ def train(**args):
                 best_models_scores.append(model_checkpoint.best_model_score.tolist())
                 logger.log_metrics({'best_model_score_' + i: model_checkpoint.best_model_score.tolist()}, step=0)
 
-            if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path \
-                    and params.pc_visualize and fold_id == 0:
+            if Models(params.model) == Models.protoconv and model_checkpoint.best_model_path:
                 best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
-                visualization_path = f'prototypes_visualization_{fold_id}.html'
-                data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
-                data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
-                logger.experiment.log_asset(visualization_path)
+                saved_number_of_prototypes = sum(best_model.enabled_prototypes_mask.tolist())
+                number_of_prototypes.append(saved_number_of_prototypes)
+                logger.log_hyperparams({f'saved_prototypes_{fold_id}': saved_number_of_prototypes})
+
+                if params.pc_visualize and fold_id == 0:
+                    visualization_path = f'prototypes_visualization_{fold_id}.html'
+                    data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
+                    data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
+                    logger.experiment.log_asset(visualization_path)
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(
@@ -187,6 +191,9 @@ def train(**args):
                 'std_best_scores': std_best,
                 'table_entry': table_entry
             })
+
+        if len(number_of_prototypes) >= 1:
+            logger.log_hyperparams({'avg_saved_prototypes': float(np.mean(np.array(number_of_prototypes)))})
 
         logger.experiment.end()
 

@@ -50,7 +50,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.conv_padding = pc_conv_padding
         self.prototypes_init = pc_prototypes_init
 
-        self.prototype_similarity_threshold = 0.1
+        self.prototype_similarity_threshold = 0.3
         self.prototype_importance_threshold = 0.01
 
         self.max_number_of_prototypes = 100
@@ -95,12 +95,11 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
-        if (self.trainer.early_stopping_callback.wait_count + 1) % 3 == 0:
-            number_protos_to_add = max(5, int(self.current_prototypes_number * 0.2))
-            self._add_prototypes(number_protos_to_add)
-
         if self._is_projection_prototype_epoch():
             self.prototype_projection.reset(device=self.device)
+        elif self.trainer.early_stopping_callback.wait_count + 1 >= 4:
+            number_protos_to_add = max(3, int(self.current_prototypes_number * 0.2))
+            self._add_prototypes(number_protos_to_add)
 
     def training_step(self, batch, batch_nb):
         if self._is_projection_prototype_epoch():
@@ -123,10 +122,11 @@ class ProtoConvLitModule(pl.LightningModule):
     def on_validation_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
+            print('The prototypes were projected')
+
             self._zeroing_disabled_prototypes()
             self._remove_non_important_prototypes()
             self._merge_similar_prototypes()
-            print('The prototypes were projected')
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
