@@ -13,13 +13,14 @@ workspace = plutasnyy
 
 prepare zip with data:
 `find data -name "*data.csv" | xargs zip data.zip`
+`python -m spacy download en`
 
 Example run:
 ```bash
 sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 --wrap "python3 src/train.py \
     --run-name 'log sim' \
     --project-name 'mgr-bench' \
-    --datasets 'hotel' \
+    --datasets 'all' \
     --model 'protoconv' -lr 1e-3 \
     --seed 0 \
     --epoch 30 \
@@ -37,7 +38,7 @@ sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 --wrap "python3 src/train.
     --pc-sep-loss-weight 0.005 \
     --pc-separation-threshold 1 \
     --pc-l1-loss-weight 1e-2 \
-    --pc-visualize False \
+    --pc-visualize True \
     --fold 5"
     #--fold 1 -fdr 1 --no-logger"` For test run
     ``
