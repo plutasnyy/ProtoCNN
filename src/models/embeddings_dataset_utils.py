@@ -7,7 +7,7 @@ from models.dataframe_dataset import DataFrameDataset
 
 
 def get_dataset(train_df, valid_df, batch_size, cache=None, gpus=1, vectors=None):
-    TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
+    TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize='spacy', tokenizer_language='en',
                       batch_first=True, lower=True)
     LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
 

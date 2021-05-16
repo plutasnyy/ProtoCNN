@@ -142,18 +142,20 @@ class DataVisualizer:
         y_pred: int = int(output.logits > 0)
 
         words = [self.vocab_itos[j] for j in list(tokens[0])]
-        text = " ".join(words)
+        text = html_escape(" ".join(words))
 
         VisRepresentation = namedtuple("VisRepresentation", "patch_text proto_text similarity weight evidence")
         prototypes_vis_per_class = defaultdict(list)
         for class_id, prototype_idx in negative_protos_idxs+positive_protos_idxs:
             patch_center_id = np.argmin(self.local(output.distances)[0, prototype_idx, :])
             patch_words = words[patch_center_id - self.context:patch_center_id + self.context + 1]
+            print(patch_words)
             patch_words_str = html_escape(' '.join(patch_words))
             prototype_html = closest_prototypes[prototype_idx].to_html_short(self.context)
+            multiplier = 1 if class_id else -1
             prototypes_vis_per_class[class_id].append(
                 VisRepresentation(patch_words_str, prototype_html, similarities[prototype_idx],
-                                  self.fc_weights[prototype_idx], evidence[prototype_idx])
+                                  self.fc_weights[prototype_idx]*multiplier, evidence[prototype_idx]*multiplier)
             )
 
         y_true_text = ''
