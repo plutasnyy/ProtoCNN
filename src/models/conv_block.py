@@ -16,10 +16,10 @@ class CustomConv1d(nn.Module):
         self.padding = padding
         self.padding_mode = padding_mode
 
-        self.weight = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size]), requires_grad=True)
+        self.weight = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size, 1]), requires_grad=True)
         self.bias = nn.Parameter(torch.rand([channels_out]), requires_grad=True)
         self.reset_parameters()
-        self.weight = self.weight.permute(1, 2, 0).unsqueeze(0)
+        self.weight.data = self.weight.data.permute(3, 1, 2, 0)
 
     def forward(self, x):
         if self.padding >= 1:
