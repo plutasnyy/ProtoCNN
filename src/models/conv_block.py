@@ -26,7 +26,7 @@ class CustomConv1d(nn.Module):
             x = F.pad(x, (self.padding, self.padding), self.padding_mode)
 
         batch_size = x.shape[0]
-        patches = x.unfold(2, self.kernel_size, self.stride)
+        patches = x.unfold(2, self.kernel_size, self.stride).contiguous()
         patches = patches.reshape(-1, self.channels_in, self.kernel_size, 1)
         patches = patches * self.weight # [1, channels_in, kernel_size, channels_out]
         patches = patches.sum((1, 2)) + self.bias
