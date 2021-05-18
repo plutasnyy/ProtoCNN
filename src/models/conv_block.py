@@ -16,9 +16,10 @@ class CustomConv1d(nn.Module):
         self.padding = padding
         self.padding_mode = padding_mode
 
-        self.kernel = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size]), requires_grad=True)
+        self.weight = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size]), requires_grad=True)
         self.bias = nn.Parameter(torch.rand([channels_out]), requires_grad=True)
         self.reset_parameters()
+        self.weight = self.weight.permute(1, 2, 0).unsqueeze(0)
 
     def forward(self, x):
         if self.padding >= 1:
@@ -27,15 +28,15 @@ class CustomConv1d(nn.Module):
         batch_size = x.shape[0]
         patches = x.unfold(2, self.kernel_size, self.stride)
         patches = patches.reshape(-1, self.channels_in, self.kernel_size, 1)
-        patches = patches * self.kernel.permute(1, 2, 0).unsqueeze(0)  # [1, channels_in, kernel_size, channels_out]
+        patches = patches * self.weight # [1, channels_in, kernel_size, channels_out]
         patches = patches.sum((1, 2)) + self.bias
         patches = patches.reshape(batch_size, self.channels_out, -1)
         return patches
 
     def reset_parameters(self) -> None:
-        init.kaiming_uniform_(self.kernel, a=math.sqrt(5))
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.kernel)
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
 
