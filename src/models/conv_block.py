@@ -1,9 +1,7 @@
-import math
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.nn import init
 
 
 class CustomConv1d(nn.Module):
@@ -16,29 +14,20 @@ class CustomConv1d(nn.Module):
         self.padding = padding
         self.padding_mode = padding_mode
 
-        self.weight = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size, 1]), requires_grad=True)
+        self.weight = nn.Parameter(torch.rand([channels_out, channels_in, kernel_size]), requires_grad=True)
         self.bias = nn.Parameter(torch.rand([channels_out]), requires_grad=True)
-        self.reset_parameters()
-        self.weight.data = self.weight.data.permute(3, 1, 2, 0)
 
     def forward(self, x):
         if self.padding >= 1:
             x = F.pad(x, (self.padding, self.padding), self.padding_mode)
 
         batch_size = x.shape[0]
-        patches = x.unfold(2, self.kernel_size, self.stride).contiguous()
-        patches = patches.reshape(-1, self.channels_in, self.kernel_size, 1)
-        patches = patches * self.weight # [1, channels_in, kernel_size, channels_out]
+        patches = x.unfold(2, self.kernel_size, self.stride)
+        patches = patches.permute(0, 2, 1, 3).contiguous().view(-1, self.channels_in, self.kernel_size)
+        patches = patches.unsqueeze(3) * self.weight.permute(1, 2, 0).unsqueeze(0)
         patches = patches.sum((1, 2)) + self.bias
-        patches = patches.reshape(batch_size, self.channels_out, -1)
+        patches = patches.view(batch_size, -1, self.channels_out).permute(0, 2, 1)
         return patches
-
-    def reset_parameters(self) -> None:
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
 
 
 class ConvolutionalBlock(nn.Module):
@@ -58,3 +47,27 @@ class ConvolutionalBlock(nn.Module):
         out = self.bn1(out)
         out = self.relu1(out)
         return out
+
+
+if __name__ == '__main__':
+    in_channels = 3
+    out_channels = 5
+    kernel_size = 3
+    padding = 1
+    stride = 2
+    padding_mode = 'reflect'
+
+    conv1d = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=padding, stride=stride,
+                       padding_mode=padding_mode)
+    conv1d_2 = CustomConv1d(in_channels, out_channels, kernel_size=kernel_size, padding=padding, stride=stride,
+                            padding_mode=padding_mode)
+
+    text = torch.tensor(np.array([
+        [[1, 0, 0.2, 0], [2, 0, 0, 0], [3, 3, 0, 0.9]],
+        [[1, 0, 0, -1], [0, 1, 0, -2], [0, 0, 0, -3]]
+    ])).float()
+    conv1d_2.weight.data.copy_(conv1d.weight.data)
+    conv1d.bias.data.copy_(conv1d_2.bias.data)
+
+    print(conv1d(text))
+    print(conv1d_2(text))
