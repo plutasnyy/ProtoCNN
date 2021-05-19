@@ -158,7 +158,8 @@ def train(**args):
                                                                                          fold_id, embeddings)
 
             trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
-                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
+                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run,
+                              profiler='advanced')
             trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
             trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
 

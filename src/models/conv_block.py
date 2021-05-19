@@ -23,10 +23,10 @@ class CustomConv1d(nn.Module):
 
         batch_size = x.shape[0]
         patches = x.unfold(2, self.kernel_size, self.stride)
-        patches = patches.permute(0, 2, 1, 3).contiguous().view(-1, self.channels_in, self.kernel_size)
+        patches = patches.permute(0, 2, 1, 3).reshape(-1, self.channels_in, self.kernel_size)
         patches = patches.unsqueeze(3) * self.weight.permute(1, 2, 0).unsqueeze(0)
         patches = patches.sum((1, 2)) + self.bias
-        patches = patches.view(batch_size, -1, self.channels_out).permute(0, 2, 1)
+        patches = patches.reshape(batch_size, -1, self.channels_out).permute(0, 2, 1)
         return patches
 
 
