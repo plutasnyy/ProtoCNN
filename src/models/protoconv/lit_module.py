@@ -53,7 +53,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_similarity_threshold = 0.5
         self.prototype_importance_threshold = 0.002
 
-        self.max_number_of_prototypes = 100
+        self.max_number_of_prototypes = 200
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
             torch.ones(self.current_prototypes_number),
@@ -130,7 +130,7 @@ class ProtoConvLitModule(pl.LightningModule):
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
             print('The prototypes were projected')
 
-            self._remove_non_important_prototypes()
+            # self._remove_non_important_prototypes()
             # self._merge_similar_prototypes()
             self._zeroing_disabled_prototypes()
 
