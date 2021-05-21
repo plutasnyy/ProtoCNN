@@ -61,19 +61,25 @@ class ProtoConvLitModule(pl.LightningModule):
         ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
-                                        padding=self.conv_padding, stride=self.conv_stride, padding_mode="reflect")
-        self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
+        # self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
+        #                                 padding=self.conv_padding, stride=self.conv_stride, padding_mode="reflect")
+        # self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
+        #                                  number_of_prototypes=self.max_number_of_prototypes,
+        #                                  initialization=self.prototypes_init)
+        self.prototypes = PrototypeLayer(channels_in=embedding_dim,
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
-        self._init_fc_layer()
-        self._zeroing_disabled_prototypes()
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
+        self.prototype_words_importance = torch.zeros([self.max_number_of_prototypes, self.conv_filter_size],
+                                                      requires_grad=False)
 
         if static_embedding:
             self.embedding.weight.requires_grad = False
+
+        self._init_fc_layer()
+        self._zeroing_disabled_prototypes()
 
         self.train_acc = pl.metrics.Accuracy()
         self.valid_acc = pl.metrics.Accuracy()
@@ -85,7 +91,7 @@ class ProtoConvLitModule(pl.LightningModule):
         return x
 
     def forward(self, x):
-        latent_space = self.get_features(x)
+        latent_space = self.embedding(x).permute((0, 2, 1))
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
@@ -111,11 +117,12 @@ class ProtoConvLitModule(pl.LightningModule):
 
         return {'loss': loss}
 
+    @torch.no_grad()
     def project_prototypes(self, batch):
         self.eval()
-        with torch.no_grad():
-            prediction: PrototypeDetailPrediction = self(batch.text)
-            self.prototype_projection.update(prediction)
+        prediction: PrototypeDetailPrediction = self(batch.text)
+        # self.prototype_projection.update(prediction, self.conv1.conv1.words_regularization)
+        self.prototype_projection.update(prediction, None)
 
     @torch.no_grad()
     def on_validation_epoch_start(self, *args, **kwargs):
@@ -123,9 +130,9 @@ class ProtoConvLitModule(pl.LightningModule):
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
             print('The prototypes were projected')
 
-            self._zeroing_disabled_prototypes()
             self._remove_non_important_prototypes()
-            self._merge_similar_prototypes()
+            # self._merge_similar_prototypes()
+            self._zeroing_disabled_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -140,11 +147,13 @@ class ProtoConvLitModule(pl.LightningModule):
         separation_loss = self.calculate_separation_loss(self.prototypes.prototypes,
                                                          threshold=self.separation_threshold)
         l1 = self.fc1.weight.norm(p=1)
+        # l1_words = self.conv1.conv1.words_regularization.norm(p=1)
+
         loss = self.ce_loss_weight * cross_entropy + self.cls_loss_weight * clustering_loss + \
                self.sep_loss_weight * separation_loss + self.l1_loss_weight * l1
         accuracy = acc_score(preds, batch.label)
 
-        return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy)
+        return LossesWrapper(loss, cross_entropy, clustering_loss, separation_loss, l1, accuracy, 0)
 
     def log_all_metrics(self, stage, losses: LossesWrapper):
         self.log(f'{stage}_loss_{self.fold_id}', losses.loss, prog_bar=True)
@@ -152,6 +161,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.log(f'{stage}_clst_{self.fold_id}', losses.clustering_loss, prog_bar=False)
         self.log(f'{stage}_sep_{self.fold_id}', losses.separation_loss, prog_bar=False)
         self.log(f'{stage}_l1_{self.fold_id}', losses.l1, prog_bar=False)
+        self.log(f'{stage}_l1_words_{self.fold_id}', losses.l1_words, prog_bar=False)
         self.log(f'{stage}_acc_{self.fold_id}', losses.accuracy, prog_bar=True, on_step=False, on_epoch=True)
         self.log(f'number_of_prototypes_{self.fold_id}', self.current_prototypes_number, prog_bar=True, on_step=False,
                  on_epoch=True)
@@ -168,7 +178,7 @@ class ProtoConvLitModule(pl.LightningModule):
         :param prototypes:
         :param threshold: the threshold, after that higher distances are ignored: distance = max(threshold-separation,0)
         """
-        prot = prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
+        prot = prototypes.view(1, prototypes.shape[0], -1)  # [1, prototypes, all_params_of_prototype]
         distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
         max_value = torch.max(distances_matrix) + 1
         distances_matrix_no_zeros = distances_matrix + torch.eye(prototypes.shape[0]).to(prototypes.device) * max_value
@@ -195,7 +205,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
     def _merge_similar_prototypes(self):
         used_prototypes = torch.where(self.enabled_prototypes_mask.data == 1)[0].tolist()
-        prot = self.prototypes.prototypes.squeeze(2).unsqueeze(0)  # [1, prototypes, latent_size]
+        prot = self.prototypes.prototypes.view(1, self.prototypes.prototypes.shape[0], -1)
         distances_matrix = torch.cdist(prot, prot, p=2).squeeze(0)  # [prototypes, prototypes]
         argsorted = torch.argsort(distances_matrix, dim=1)
 
@@ -274,6 +284,7 @@ class ProtoConvLitModule(pl.LightningModule):
     @torch.no_grad()
     def _zeroing_disabled_prototypes(self):
         self.prototypes.prototypes.data[~self.enabled_prototypes_mask.bool()] *= 0
+        self.prototype_words_importance[~self.enabled_prototypes_mask.bool()] *= 0
         self.fc1.weight.data[:, ~self.enabled_prototypes_mask.bool()] *= 0
 
     def configure_optimizers(self):

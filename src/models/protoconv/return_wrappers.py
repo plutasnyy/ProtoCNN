@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-LossesWrapper = namedtuple('LossesWrapper', 'loss cross_entropy clustering_loss separation_loss l1 accuracy')
+LossesWrapper = namedtuple('LossesWrapper', 'loss cross_entropy clustering_loss separation_loss l1 accuracy l1_words')
 
 
 class PrototypeDetailPrediction:
