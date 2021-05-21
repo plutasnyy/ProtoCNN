@@ -61,14 +61,14 @@ class ProtoConvLitModule(pl.LightningModule):
         ]), requires_grad=False)
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        # self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
-        #                                 padding=self.conv_padding, stride=self.conv_stride, padding_mode="reflect")
+        self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=1,
+                                        padding=0, stride=self.conv_stride, padding_mode="reflect")
         # self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
         #                                  number_of_prototypes=self.max_number_of_prototypes,
         #                                  initialization=self.prototypes_init)
-        self.prototypes = PrototypeLayer(channels_in=embedding_dim,
+        self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
                                          number_of_prototypes=self.max_number_of_prototypes,
-                                         initialization=self.prototypes_init)
+                                         prototype_length=self.conv_filter_size, initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
@@ -91,7 +91,7 @@ class ProtoConvLitModule(pl.LightningModule):
         return x
 
     def forward(self, x):
-        latent_space = self.embedding(x).permute((0, 2, 1))
+        latent_space = self.get_features(x)
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
