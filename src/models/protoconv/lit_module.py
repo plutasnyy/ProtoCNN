@@ -199,7 +199,7 @@ class ProtoConvLitModule(pl.LightningModule):
         non_important_prototypes_idxs = (abs(self.fc1.weight[0]) <= self.prototype_importance_threshold) \
                                         * self.enabled_prototypes_mask
         remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).squeeze(1).tolist()
-        if 0 < len(remove_ids) < self.current_prototypes_number:
+        if 1 < len(remove_ids) < self.current_prototypes_number:
             self._remove_prototypes(remove_ids)
             print(f'Prototypes {remove_ids}, were removed')
 
