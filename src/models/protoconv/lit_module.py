@@ -51,7 +51,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes_init = pc_prototypes_init
 
         self.prototype_similarity_threshold = 0.5
-        self.prototype_importance_threshold = 0.002
+        self.prototype_importance_threshold = 0.001
 
         self.max_number_of_prototypes = 200
         self.current_prototypes_number = self.number_of_prototypes
