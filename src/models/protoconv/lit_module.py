@@ -131,7 +131,7 @@ class ProtoConvLitModule(pl.LightningModule):
             print('The prototypes were projected')
 
             self._remove_non_important_prototypes()
-            self._merge_similar_prototypes()
+            # self._merge_similar_prototypes()
             self._zeroing_disabled_prototypes()
 
     def validation_step(self, batch, batch_nb):
