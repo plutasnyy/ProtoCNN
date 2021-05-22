@@ -25,13 +25,11 @@ class PrototypeProjection:
             x = predictions.latent_space[pred_id]
             if self.padding >= 1:
                 x = F.pad(x, (self.padding, self.padding), 'constant')
-            latent_space = x.unfold(dimension=1, step=1, size=self.prototype_length).squeeze(0).permute(1, 0,
-                                                                                                        2)  # [32,115] [ latent_size, length]
-            distances = predictions.distances[pred_id].squeeze(0)  # [16,115]  [prototypes, distances]
+            latent_space = x.unfold(dimension=1, step=1, size=self.prototype_length).squeeze(0).permute(1, 0, 2)
+            distances = predictions.distances[pred_id].squeeze(0)
 
             best_distances, best_distances_idx = torch.min(distances, dim=1)
             best_latents_to_prototype = latent_space[best_distances_idx]
-            # permute to [115, 32] for correct selecting representations, after selection [prototypes, 32, 1]
 
             update_mask = best_distances < self._min_distances_prototype_example
             update_indexes = torch.where(update_mask == 1)
@@ -46,5 +44,5 @@ class PrototypeProjection:
     def reset(self, device):
         self._projected_prototypes = torch.zeros([self.number_of_prototypes, *self.prototype_shape], device=device)
         self._min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'), device=device)
-        self._prototype_words_importance = torch.zeros([self.number_of_prototypes, self.prototype_length],
-                                                       requires_grad=False, device=device)
+        # self._prototype_words_importance = torch.zeros([self.number_of_prototypes, self.prototype_length],
+        #                                                requires_grad=False, device=device)

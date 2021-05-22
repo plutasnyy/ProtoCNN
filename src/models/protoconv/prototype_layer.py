@@ -4,11 +4,11 @@ from torch import nn
 
 
 class PrototypeLayer(nn.Module):
-    def __init__(self, channels_in, number_of_prototypes, prototype_length=3, padding=1, padding_mode='constant',
+    def __init__(self, channels_in, number_of_prototypes, prototype_length=3, padding_mode='constant',
                  initialization='rand'):
         super().__init__()
         self.prototype_length = prototype_length
-        self.padding = padding
+        self.padding = prototype_length//2
         self.padding_mode = padding_mode
 
         if initialization == 'rand':

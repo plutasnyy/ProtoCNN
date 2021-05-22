@@ -66,9 +66,9 @@ class ProtoConvLitModule(pl.LightningModule):
         # self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
         #                                  number_of_prototypes=self.max_number_of_prototypes,
         #                                  initialization=self.prototypes_init)
-        self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
+        self.prototypes = PrototypeLayer(channels_in=self.conv_filters, prototype_length=self.conv_filter_size,
                                          number_of_prototypes=self.max_number_of_prototypes,
-                                         prototype_length=self.conv_filter_size, initialization=self.prototypes_init)
+                                         initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
