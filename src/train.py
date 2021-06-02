@@ -156,7 +156,7 @@ def train(**args):
             train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
             model, train_loader, val_loader, *utils = lit_module.from_params_and_dataset(train_df, valid_df, params,
                                                                                          fold_id, embeddings)
-            limit_train_batches = 10 if params.fast_dev_run else None
+            limit_train_batches = 10 if params.fast_dev_run else 1.0
             trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
                               gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run,
                               limit_train_batches=limit_train_batches)
