@@ -27,7 +27,7 @@ class ProtoConvLitModule(pl.LightningModule):
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
                  pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_stride=1, pc_conv_filter_size=3, pc_conv_padding=1,
-                 pc_prototypes_init='rand', *args, **kwargs):
+                 pc_prototypes_init='rand', itos=None, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -35,20 +35,26 @@ class ProtoConvLitModule(pl.LightningModule):
         self.fold_id = fold_id
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
+
         self.learning_rate = lr
         self.project_prototypes_every_n = pc_project_prototypes_every_n
         self.sim_func = pc_sim_func
+
         self.separation_threshold = pc_separation_threshold
         self.ce_loss_weight = pc_ce_loss_weight
         self.sep_loss_weight = pc_sep_loss_weight
         self.cls_loss_weight = pc_cls_loss_weight
         self.l1_loss_weight = pc_l1_loss_weight
         self.number_of_prototypes: int = pc_number_of_prototypes
+
         self.conv_filters: int = pc_conv_filters
         self.conv_stride: int = pc_conv_stride
         self.conv_filter_size = pc_conv_filter_size
         self.conv_padding = pc_conv_padding
+        self.conv_padding_mode = 'zeros'
+
         self.prototypes_init = pc_prototypes_init
+        self.itos = itos
 
         self.prototype_similarity_threshold = 0.5
         self.prototype_importance_threshold = 0.002
@@ -62,13 +68,16 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
-                                        padding=self.conv_padding, stride=self.conv_stride, padding_mode="reflect")
+                                        padding=self.conv_padding, stride=self.conv_stride,
+                                        padding_mode=self.conv_padding_mode)
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
                                          number_of_prototypes=self.max_number_of_prototypes,
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
 
-        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape)
+        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape,
+                                                                             self.conv_filter_size)
+        self.prototype_tokens = torch.zeros([self.max_number_of_prototypes, self.conv_filter_size], requires_grad=False)
 
         if static_embedding:
             self.embedding.weight.requires_grad = False
@@ -80,19 +89,18 @@ class ProtoConvLitModule(pl.LightningModule):
         self.valid_acc = pl.metrics.Accuracy()
         self.loss = BCEWithLogitsLoss()
 
-    def get_features(self, x):
-        x = self.embedding(x).permute((0, 2, 1))
-        x = self.conv1(x)
-        return x
-
     def forward(self, x):
-        latent_space = self.get_features(x)
+        embedding = self.embedding(x).permute((0, 2, 1))
+        latent_space = self.conv1(embedding)
+        tokens_per_kernel = F.pad(x, (self.conv_padding, self.conv_padding), 'constant').unfold(1,
+                                                                                                self.conv_filter_size,
+                                                                                                1)
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
         masked_similarity = similarity * self.enabled_prototypes_mask
         logits = self.fc1(masked_similarity).squeeze(1)
-        return PrototypeDetailPrediction(latent_space, distances, logits, min_dist)
+        return PrototypeDetailPrediction(latent_space, distances, logits, min_dist, tokens_per_kernel)
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
@@ -122,6 +130,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def on_validation_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
             self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
+            self.prototype_tokens.data.copy_(self.prototype_projection.get_tokens())
             print('The prototypes were projected')
 
             self._zeroing_disabled_prototypes()
@@ -217,7 +226,7 @@ class ProtoConvLitModule(pl.LightningModule):
                 else:
                     break
 
-        if 1 <= len(to_list) <= self.current_prototypes_number-2:
+        if 1 <= len(to_list) <= self.current_prototypes_number - 2:
             self._remove_prototypes(to_list, from_list)
             print(f'Prototypes {to_list}, {from_list} were merged')
 
@@ -309,7 +318,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
         TEXT, LABEL, train_loader, val_loader = get_dataset(train_df, valid_df, params.batch_size, gpus=params.gpu,
                                                             vectors=embeddings)
-        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id, **params)
+        model = cls(vocab_size=len(TEXT.vocab), embedding_dim=TEXT.vocab.vectors.shape[1], fold_id=fold_id,
+                    itos=TEXT.vocab.itos, **params)
         model.embedding.weight.data.copy_(TEXT.vocab.vectors)
         utils = {
             'TEXT': TEXT

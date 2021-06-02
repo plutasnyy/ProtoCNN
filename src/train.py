@@ -156,10 +156,8 @@ def train(**args):
             train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
             model, train_loader, val_loader, *utils = lit_module.from_params_and_dataset(train_df, valid_df, params,
                                                                                          fold_id, embeddings)
-            limit_train_batches = 10 if params.fast_dev_run else 1.0
             trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
-                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run,
-                              limit_train_batches=limit_train_batches)
+                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
 
             trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
             trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
@@ -177,11 +175,11 @@ def train(**args):
                 number_of_prototypes.append(saved_number_of_prototypes)
                 logger.log_hyperparams({f'saved_prototypes_{fold_id}': saved_number_of_prototypes})
 
-                if params.pc_visualize and fold_id == 0:
-                    visualization_path = f'prototypes_visualization_{fold_id}.html'
-                    data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
-                    data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
-                    logger.experiment.log_asset(visualization_path)
+                # if params.pc_visualize and fold_id == 0:
+                #     visualization_path = f'prototypes_visualization_{fold_id}.html'
+                #     data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
+                #     data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
+                #     logger.experiment.log_asset(visualization_path)
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(
