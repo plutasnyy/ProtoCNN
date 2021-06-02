@@ -33,7 +33,7 @@ class PrototypeProjection:
 
             self._min_distances_prototype_example[update_indexes] = best_distances[update_indexes]
             self._projected_prototypes[update_indexes] = best_latents_to_prototype[update_indexes]
-            self._prototype_tokens[update_indexes] = best_tokens_to_prototype[update_indexes].float()
+            self._prototype_tokens[update_indexes] = best_tokens_to_prototype[update_indexes].int()
 
     def get_weights(self):
         return torch.tensor(self._projected_prototypes)
@@ -41,8 +41,8 @@ class PrototypeProjection:
     def get_tokens(self):
         return torch.tensor(self._prototype_tokens)
 
-
     def reset(self, device):
         self._projected_prototypes = torch.zeros([self.number_of_prototypes, *self.prototype_shape], device=device)
         self._min_distances_prototype_example = torch.full([self.number_of_prototypes], float('inf'), device=device)
-        self._prototype_tokens = torch.zeros([self.number_of_prototypes, self.prototype_words], device=device).float()
+        self._prototype_tokens = torch.zeros([self.number_of_prototypes, self.prototype_words], device=device,
+                                             dtype=torch.int)

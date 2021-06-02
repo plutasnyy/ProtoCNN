@@ -77,7 +77,8 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape,
                                                                              self.conv_filter_size)
-        self.prototype_tokens = torch.zeros([self.max_number_of_prototypes, self.conv_filter_size], requires_grad=False)
+        self.prototype_tokens = nn.Parameter(torch.zeros([self.max_number_of_prototypes, self.conv_filter_size],
+                                                         dtype=torch.int), requires_grad=False)
 
         if static_embedding:
             self.embedding.weight.requires_grad = False
