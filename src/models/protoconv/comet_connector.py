@@ -5,7 +5,7 @@ from io import BytesIO
 import comet_ml
 import pandas as pd
 
-from models.embeddings_dataset_utils import get_dataset
+from embeddings_dataset_utils import get_dataset
 from models.protoconv.lit_module import ProtoConvLitModule
 
 
@@ -35,7 +35,7 @@ class CometConnector:
         val_index = literal_eval(kfold_split['val_indices'])
         test_index = literal_eval(kfold_split['test_indices'])
 
-        df_dataset = pd.read_csv(f'data/{self.dataset}/data.csv')
+        df_dataset = pd.read_csv(f'data/{self.dataset}/tokenized_data.csv')
         train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
         self.TEXT, self.LABEL, self.train_loader, self.val_loader = get_dataset(train_df, valid_df, batch_size=1,

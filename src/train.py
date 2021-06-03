@@ -129,7 +129,7 @@ def train(**args):
         logger.log_hyperparams(params)
         base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
-        df_dataset = pd.read_csv(f'data/{params.data_set}/data.csv')
+        df_dataset = pd.read_csv(f'data/{params.data_set}/tokenized_data.csv')
         n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
         log_splits(n_splits, logger)
 
