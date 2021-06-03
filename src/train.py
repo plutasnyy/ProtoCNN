@@ -139,15 +139,10 @@ def train(**args):
         for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
             i = str(fold_id)
 
-            period = 1
-            if params.pc_project_prototypes_every_n > 0 and Models(params.model) == Models.protoconv:
-                period = params.pc_project_prototypes_every_n
-                params.epoch = ProtoConvLitModule.calc_number_of_epochs_with_projection(params.epoch, period)
-                logger.log_hyperparams({'true_epoch': params.epoch})
-
             model_checkpoint = ModelCheckpoint(
                 filepath='checkpoints/fold_' + i + '_{epoch:02d}-{val_loss_' + i + ':.4f}-{val_acc_' + i + ':.4f}',
-                save_weights_only=True, save_top_k=1, monitor='val_acc_' + i, period=period
+                save_weights_only=True, save_top_k=1, monitor='val_acc_' + i,
+                period=params.pc_project_prototypes_every_n
             )
             early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=7, verbose=True, mode='min', min_delta=0.005)
             callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]

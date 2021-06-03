@@ -13,7 +13,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from models.conv_block import ConvolutionalBlock
 from models.embeddings_dataset_utils import get_dataset
 from models.protoconv.prototype_layer import PrototypeLayer
-from models.protoconv.prototype_projection import PrototypeProjection
 from models.protoconv.return_wrappers import LossesWrapper, PrototypeDetailPrediction
 
 
@@ -75,8 +74,6 @@ class ProtoConvLitModule(pl.LightningModule):
                                          initialization=self.prototypes_init)
         self.fc1 = nn.Linear(self.max_number_of_prototypes, 1, bias=False)
 
-        self.prototype_projection: PrototypeProjection = PrototypeProjection(self.prototypes.prototypes.shape,
-                                                                             self.conv_filter_size)
         self.prototype_tokens = nn.Parameter(torch.zeros([self.max_number_of_prototypes, self.conv_filter_size],
                                                          dtype=torch.int), requires_grad=False)
 
@@ -93,9 +90,10 @@ class ProtoConvLitModule(pl.LightningModule):
     def forward(self, x):
         embedding = self.embedding(x).permute((0, 2, 1))
         latent_space = self.conv1(embedding)
-        tokens_per_kernel = F.pad(x, (self.conv_padding, self.conv_padding), 'constant').unfold(1,
-                                                                                                self.conv_filter_size,
-                                                                                                1)
+
+        padded_tokens = F.pad(x, (self.conv_padding, self.conv_padding), 'constant')
+        tokens_per_kernel = padded_tokens.unfold(1, self.conv_filter_size, 1)
+
         distances = self.prototypes(latent_space)
         min_dist = self._min_pooling(distances)
         similarity = self.dist_to_sim[self.sim_func](min_dist)
@@ -105,39 +103,53 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
-        if self._is_projection_prototype_epoch():
-            self.prototype_projection.reset(device=self.device)
-        elif self.trainer.early_stopping_callback.wait_count + 1 >= 3:
+        if self.trainer.early_stopping_callback.wait_count + 1 >= 3:
             self._add_prototypes(5)
 
     def training_step(self, batch, batch_nb):
-        if self._is_projection_prototype_epoch():
-            self.project_prototypes(batch)
-            loss = torch.tensor(.0, requires_grad=True)
-        else:
-            losses = self.learning_step(batch, self.train_acc)
-            loss = losses.loss
-            self.log_all_metrics('train', losses)
-
-        return {'loss': loss}
-
-    @torch.no_grad()
-    def project_prototypes(self, batch):
-        self.eval()
-        prediction: PrototypeDetailPrediction = self(batch.text)
-        self.prototype_projection.update(prediction)
+        losses = self.learning_step(batch, self.train_acc)
+        self.log_all_metrics('train', losses)
+        return {'loss': losses.loss}
 
     @torch.no_grad()
     def on_validation_epoch_start(self, *args, **kwargs):
         if self._is_projection_prototype_epoch():
-            self.prototypes.prototypes.data.copy_(self.prototype_projection.get_weights())
-            self.prototype_tokens.data.copy_(self.prototype_projection.get_tokens())
-            print('The prototypes were projected')
+            self._project_prototypes()
 
-            self._zeroing_disabled_prototypes()
-            self._remove_non_important_prototypes()
-            self._merge_similar_prototypes()
-            self._zeroing_disabled_prototypes()
+    @torch.no_grad()
+    def _project_prototypes(self):
+        self.eval()
+        projected_prototypes = torch.zeros_like(self.prototypes.prototypes, device=self.device)
+        min_distances_prototype_example = torch.full([self.max_number_of_prototypes], float('inf'), device=self.device)
+        prototype_tokens = torch.zeros([self.max_number_of_prototypes, self.conv_filter_size], dtype=torch.int,
+                                       device=self.device)
+        for batch in self.train_dataloader():
+            predictions = self(batch.text)
+            for pred_id in range(len(predictions.logits)):
+                tokens_per_kernel = predictions.tokens_per_kernel[pred_id].squeeze(0)
+                latent_space = predictions.latent_space[pred_id].squeeze(0)
+                distances = predictions.distances[pred_id].squeeze(0)
+
+                assert latent_space.shape[1] == tokens_per_kernel.shape[0] == distances.shape[1]
+
+                best_distances, best_distances_idx = torch.min(distances, dim=1)
+                best_latents_to_prototype = latent_space.permute(1, 0)[best_distances_idx].unsqueeze(2)
+                best_tokens_to_prototype = tokens_per_kernel[best_distances_idx]
+
+                update_mask = best_distances < min_distances_prototype_example
+                update_indexes = torch.where(update_mask == 1)
+
+                min_distances_prototype_example[update_indexes] = best_distances[update_indexes]
+                projected_prototypes[update_indexes] = best_latents_to_prototype[update_indexes]
+                prototype_tokens[update_indexes] = best_tokens_to_prototype[update_indexes].int()
+        self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
+        self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
+
+        # self(self.prototype_tokens.flatten().unsqueeze(0).long()).min_distances[self.enabled_prototypes_mask.bool().unsqueeze(0)].mean()
+
+        self._remove_non_important_prototypes()
+        self._merge_similar_prototypes()
+        self._zeroing_disabled_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -198,6 +210,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def _is_projection_prototype_epoch(self):
         return self.project_prototypes_every_n > 0 and (self.current_epoch + 1) % self.project_prototypes_every_n == 0
 
+    @torch.no_grad()
     def _remove_non_important_prototypes(self):
         non_important_prototypes_idxs = (abs(self.fc1.weight[0]) <= self.prototype_importance_threshold) \
                                         * self.enabled_prototypes_mask
@@ -206,6 +219,7 @@ class ProtoConvLitModule(pl.LightningModule):
             self._remove_prototypes(remove_ids)
             print(f'Prototypes {remove_ids}, were removed')
 
+    @torch.no_grad()
     def _merge_similar_prototypes(self):
         used_prototypes = torch.where(self.enabled_prototypes_mask.data == 1)[0].tolist()
         prot = self.prototypes.prototypes.view(1, self.prototypes.prototypes.shape[0], -1)
@@ -300,20 +314,6 @@ class ProtoConvLitModule(pl.LightningModule):
             'optimizer': optimizer,
             'lr_scheduler': lr_scheduler,
         }
-
-    @staticmethod
-    def calc_number_of_epochs_with_projection(epochs, period):
-        """
-        prototype projection is done as 'dry' epoch, so the number of max_epochs should be increased
-        """
-        if period <= 1:
-            return epochs
-        epochs_to_do, epoch_iterator = copy(epochs), 0
-        while epochs_to_do > 0:
-            if (epoch_iterator + 1) % period != 0:
-                epochs_to_do -= 1
-            epoch_iterator += 1
-        return epoch_iterator
 
     @classmethod
     def from_params_and_dataset(cls, train_df, valid_df, params, fold_id, embeddings=None):
