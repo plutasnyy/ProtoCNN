@@ -168,13 +168,18 @@ def train(**args):
                 best_model = lit_module.load_from_checkpoint(model_checkpoint.best_model_path)
                 saved_number_of_prototypes = sum(best_model.enabled_prototypes_mask.tolist())
                 number_of_prototypes.append(saved_number_of_prototypes)
-                logger.log_hyperparams({f'saved_prototypes_{fold_id}': saved_number_of_prototypes})
+                logger.log_hyperparams({
+                    f'saved_prototypes_{fold_id}': saved_number_of_prototypes,
+                    f'best_model_path_{fold_id}': model_checkpoint.best_model_path
+                })
 
-                # if params.pc_visualize and fold_id == 0:
-                #     visualization_path = f'prototypes_visualization_{fold_id}.html'
-                #     data_visualizer = DataVisualizer(best_model, train_loader, vocab_itos=utils[0]['TEXT'].vocab.itos)
-                #     data_visualizer.visualize_prototypes_as_bold(output_file_path=visualization_path)
-                #     logger.experiment.log_asset(visualization_path)
+                if params.pc_visualize and fold_id == 0:
+                    data_visualizer = DataVisualizer(best_model)
+                    logger.experiment.log_html(f'<h1>Split {fold_id}</h1><br> <h3>Prototypes:</h3><br>'
+                                               f'{data_visualizer.visualize_prototypes()}<br> <h3>Random prediction explanations:</h3><br>'
+                                               f'{data_visualizer.visualize_random_predictions(val_loader, n=10)}')
+                    logger.experiment.log_figure('Prototypes similarity', data_visualizer.visualize_similarity().fig)
+
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(
