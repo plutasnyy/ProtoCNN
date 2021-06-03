@@ -1,20 +1,24 @@
 """
 This script removes embeddings that are not used in any dataset
 """
+import string
 
 import pandas as pd
 import torch
+from nltk.corpus import stopwords
 from torchtext import data
 from torchtext.vocab import _infer_shape
 from tqdm import tqdm
 
-from models.dataframe_dataset import DataFrameDataset
+from dataframe_dataset import DataFrameDataset
 
 set_of_words = set()
 for dataset in ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']:
-    # The settings has to be the same like in src/models/embeddings_dataset_utils.py
-    TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize=None, tokenizer_language='en',
-                      batch_first=True, lower=True)
+    # The settings has to be the same like in src/embeddings_dataset_utils.py
+    TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize='spacy', tokenizer_language='en',
+                      batch_first=True, lower=True,
+                      stop_words=set(stopwords.words('english')) & set(string.punctuation)
+                      )
     LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
 
     df_dataset = pd.read_csv(f'data/{dataset}/data.csv')
@@ -28,7 +32,7 @@ for dataset in ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']:
 print(len(set_of_words))
 
 path = '.vector_cache/wiki.en.vec'
-path_pt = '.vector_cache/2wiki.en.vec.pt'
+path_pt = '.vector_cache/wiki2.en.vec.pt'
 
 vectors_loaded = 0
 with open(path, 'rb') as f:

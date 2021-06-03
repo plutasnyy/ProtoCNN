@@ -10,7 +10,7 @@ import pandas as pd
 from easydict import EasyDict
 from pytorch_lightning import seed_everything
 
-from models.embeddings_dataset_utils import get_dataset
+from embeddings_dataset_utils import get_dataset
 from models.protoconv.data_visualizer import DataVisualizer
 
 warnings.simplefilter("ignore")

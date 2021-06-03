@@ -1,5 +1,4 @@
 import math
-from copy import copy
 
 import pytorch_lightning as pl
 import torch
@@ -10,8 +9,8 @@ from torch.nn.init import calculate_gain
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from embeddings_dataset_utils import get_dataset
 from models.conv_block import ConvolutionalBlock
-from models.embeddings_dataset_utils import get_dataset
 from models.protoconv.prototype_layer import PrototypeLayer
 from models.protoconv.return_wrappers import LossesWrapper, PrototypeDetailPrediction
 
@@ -237,8 +236,6 @@ class ProtoConvLitModule(pl.LightningModule):
                 elif abs(distances_matrix[prototype_idx, target_proto_idx]) <= self.prototype_similarity_threshold:
                     from_list.append(prototype_idx)
                     to_list.append(target_proto_idx)
-                    break
-                else:
                     break
 
         if 1 <= len(to_list) <= self.current_prototypes_number - 2:

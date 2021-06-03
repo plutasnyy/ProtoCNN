@@ -7,7 +7,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from models.conv_block import ConvolutionalBlock
-from models.embeddings_dataset_utils import get_dataset
+from embeddings_dataset_utils import get_dataset
 
 
 class CNNLitModule(pl.LightningModule):
