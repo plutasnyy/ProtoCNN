@@ -1,14 +1,19 @@
+import string
+
 import torch
 from torchtext import data
 from torchtext.data import BucketIterator
 from torchtext.vocab import FastText
+from nltk.corpus import stopwords
 
 from models.dataframe_dataset import DataFrameDataset
 
 
 def get_dataset(train_df, valid_df, batch_size, cache=None, gpus=1, vectors=None):
     TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize='spacy', tokenizer_language='en',
-                      batch_first=True, lower=True)
+                      batch_first=True, lower=True,
+                      stop_words=set(stopwords.words('english')) & set(string.punctuation)
+                      )
     LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
 
     train_dataset = DataFrameDataset(train_df, {

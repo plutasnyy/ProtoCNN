@@ -12,3 +12,4 @@ torchtext==0.8.1
 spacy==2.3.5
 dill==0.3.3
 click-option-group==0.5.2
+ntlk==3.6.2
