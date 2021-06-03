@@ -44,7 +44,7 @@ warnings.simplefilter("ignore")
 @optgroup.option('--model', type=click.Choice(['distilbert', 'cnn', 'protoconv']), required=True,
                  help='Which model should be used')
 @optgroup.option('--datasets', required=True, multiple=True,
-                 type=click.Choice(['amazon', 'hotel', 'imdb', 'yelp', 'rottentomatoes', 'all']))
+                 help='Few of amazon, hotel, imdb, yelp, rottentomatoes, all')
 @optgroup.option('--epoch', default=30, type=int, help='Number of epochs')
 @optgroup.option('--fold', default=1, type=int, help='Whenever train using one split, or 5-fold')
 @optgroup.option('-lr', default=2e-5, type=float, help='Learning rate')
@@ -152,7 +152,8 @@ def train(**args):
             model, train_loader, val_loader, *utils = lit_module.from_params_and_dataset(train_df, valid_df, params,
                                                                                          fold_id, embeddings)
             trainer = Trainer(auto_lr_find=params.find_lr, logger=logger, max_epochs=params.epoch, callbacks=callbacks,
-                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run)
+                              gpus=params.gpu, deterministic=True, fast_dev_run=params.fast_dev_run,
+                              num_sanity_val_steps=0)
 
             trainer.tune(model, train_dataloader=train_loader, val_dataloaders=val_loader)
             trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)
@@ -178,8 +179,7 @@ def train(**args):
                     logger.experiment.log_html(f'<h1>Split {fold_id}</h1><br> <h3>Prototypes:</h3><br>'
                                                f'{data_visualizer.visualize_prototypes()}<br> <h3>Random prediction explanations:</h3><br>'
                                                f'{data_visualizer.visualize_random_predictions(val_loader, n=10)}')
-                    logger.experiment.log_figure('Prototypes similarity', data_visualizer.visualize_similarity().fig)
-
+                    logger.experiment.log_figure('Prototypes similarity', data_visualizer.visualize_similarity().figure)
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(

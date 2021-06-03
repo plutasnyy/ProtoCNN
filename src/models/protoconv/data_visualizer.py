@@ -9,7 +9,7 @@ from utils import html_escape
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-sns.set_style('darkgrid')
+sns.set(font_scale=0.8, style='darkgrid')
 
 
 class DataVisualizer:
@@ -34,14 +34,16 @@ class DataVisualizer:
         words_matrix = self.model.prototype_tokens.tolist()
         for tokens_list in words_matrix:
             words = [self.model.itos[int(token)] for token in tokens_list]
-            words = [w for w in words if w not in ['<START>', '<END>','<unk>','<pad>']]
+            words = [w for w in words if w not in ['<START>', '<END>', '<unk>', '<pad>']]
             self.prototypes_words.append(words)
             self.prototypes.append(' '.join(words))
 
     @torch.no_grad()
     def visualize_prototypes(self, output_file_path=None):
         lines = []
-        for relative_id, prototype_id in enumerate(self.used_prototypes_ids()):
+        used_ids = self.used_prototypes_ids()
+        sorted_by_weights = sorted(used_ids, key=lambda x: self.fc_weights[x], reverse=True)
+        for relative_id, prototype_id in enumerate(sorted_by_weights):
             lines.append(f'<b>Prototype {relative_id + 1}</b> (weight {self.fc_weights[prototype_id]:.3f}): '
                          f'{html_escape(self.prototypes[prototype_id])}')
         text = '<br>'.join(lines)
@@ -78,8 +80,8 @@ class DataVisualizer:
         prototypes_vis_per_class = defaultdict(list)
         for class_id, prototype_idx in negative_protos_idxs[:3] + positive_protos_idxs[:3]:
             patch_center_id = np.argmin(self.local(output.distances)[0, prototype_idx, :])
-            if len(words)> self.context:
-                patch_center_id = min(max(self.context+1, patch_center_id), len(words)-1-self.context-1)
+            if len(words) > self.context:
+                patch_center_id = min(max(self.context + 1, patch_center_id), len(words) - 1 - self.context - 1)
 
             first_index = max(0, patch_center_id - self.context)
             last_index = min(patch_center_id + self.context + 1, len(words) - 1)
@@ -127,8 +129,10 @@ class DataVisualizer:
         dist_mat_enabled_proto = distances_matrix[enabled_mask][:, enabled_mask]
         labels = list(np.array(self.prototypes)[enabled_mask.cpu()])
 
-        plt.subplots(figsize=(12, 8))
+        plt.subplots(figsize=(20, 10))
         ax = sns.heatmap(dist_mat_enabled_proto, xticklabels=labels, yticklabels=labels)
+        plt.xticks(rotation=30)
+
         return ax
 
     @torch.no_grad()

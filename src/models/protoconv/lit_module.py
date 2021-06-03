@@ -54,7 +54,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes_init = pc_prototypes_init
         self.itos = itos
 
-        self.prototype_similarity_threshold = 0.05
+        self.prototype_similarity_threshold = 0.2
         self.prototype_importance_threshold = 0.002
 
         self.max_number_of_prototypes = 100
@@ -144,9 +144,9 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
-        # self(self.prototype_tokens.flatten().unsqueeze(0).long()).min_distances[self.enabled_prototypes_mask.bool().unsqueeze(0)].mean()
-
         self._remove_non_important_prototypes()
+        self._zeroing_disabled_prototypes()
+
         self._merge_similar_prototypes()
         self._zeroing_disabled_prototypes()
 
@@ -303,7 +303,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         lr_scheduler = {
-            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.1, verbose=True),
+            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.1, verbose=True),
             'name': f'learning_rate_{self.fold_id}',
             'monitor': f'val_loss_{self.fold_id}'
         }
