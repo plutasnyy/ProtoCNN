@@ -19,7 +19,7 @@ for dataset in ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']:
                       batch_first=True, lower=True,
                       stop_words=set(stopwords.words('english')) | set(string.punctuation)
                       )
-    LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
+    LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False, use_vocab=False)
 
     df_dataset = pd.read_csv(f'data/{dataset}/toknized_data.csv')
     entire_dataset = DataFrameDataset(df_dataset, {

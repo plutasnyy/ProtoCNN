@@ -12,7 +12,7 @@ from dataframe_dataset import DataFrameDataset
 for dataset in ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']:
     TEXT = data.Field(init_token='<START>', eos_token='<END>', tokenize='spacy', tokenizer_language='en',
                       batch_first=True, lower=True, stop_words=set(string.punctuation))
-    LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False)
+    LABEL = data.Field(dtype=torch.float, is_target=True, unk_token=None, sequential=False, use_vocab=False)
 
     df_dataset = pd.read_csv(f'data/{dataset}/data.csv')
     entire_dataset = DataFrameDataset(df_dataset, {
