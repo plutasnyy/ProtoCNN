@@ -17,21 +17,20 @@ prepare zip with data:
 
 Example run:
 ```bash
-sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 --wrap "python3 src/train.py \
+sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
     --run-name 'log sim' \
     --project-name 'mgr-bench' \
     --datasets 'all' \
-    --model 'protoconv' -lr 1e-3 \
+    --model 'protoconv' \
+    -lr 1e-3 \
     --seed 0 \
     --epoch 30 \
     --batch-size 32 \
     --pc-conv-filters 64 \
     --pc-conv-filter-size 3 \
-    --pc-conv-stride 1 \
-    --pc-conv-padding 1 \
-    --pc-project-prototypes-every-n 2 \
+    --pc-project-prototypes-every-n 1 \
     --pc-prototypes-init 'rand' \
-    --pc-number-of-prototypes -1 \
+    --pc-number-of-prototypes 16 \
     --pc-sim-func 'log' \
     --pc-ce-loss-weight 0.99 \
     --pc-cls-loss-weight 0.005 \

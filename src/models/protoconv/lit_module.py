@@ -139,14 +139,12 @@ class ProtoConvLitModule(pl.LightningModule):
                 min_distances_prototype_example[update_indexes] = best_distances[update_indexes]
                 projected_prototypes[update_indexes] = best_latents_to_prototype[update_indexes]
                 prototype_tokens[update_indexes] = best_tokens_to_prototype[update_indexes].int()
+
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
         self._remove_non_important_prototypes()
-        self._zeroing_disabled_prototypes()
-
         self._merge_similar_prototypes()
-        self._zeroing_disabled_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
