@@ -24,8 +24,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
-                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_stride=1, pc_conv_filter_size=3, pc_conv_padding=1,
-                 pc_prototypes_init='rand', itos=None, *args, **kwargs):
+                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_filter_size=3, pc_prototypes_init='rand', itos=None,
+                 *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -46,9 +46,8 @@ class ProtoConvLitModule(pl.LightningModule):
         self.number_of_prototypes: int = pc_number_of_prototypes
 
         self.conv_filters: int = pc_conv_filters
-        self.conv_stride: int = pc_conv_stride
         self.conv_filter_size = pc_conv_filter_size
-        self.conv_padding = pc_conv_padding
+        self.conv_padding = self.conv_filter_size // 2
         self.conv_padding_mode = 'zeros'
 
         self.prototypes_init = pc_prototypes_init
@@ -66,7 +65,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.conv1 = ConvolutionalBlock(300, self.conv_filters, kernel_size=self.conv_filter_size,
-                                        padding=self.conv_padding, stride=self.conv_stride,
+                                        padding=self.conv_padding, stride=1,
                                         padding_mode=self.conv_padding_mode)
         self.prototypes = PrototypeLayer(channels_in=self.conv_filters,
                                          number_of_prototypes=self.max_number_of_prototypes,
@@ -102,8 +101,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
-        if self.trainer.early_stopping_callback.wait_count + 1 >= 3:
-            self._add_prototypes(5)
+        self._add_prototypes(2)
 
     def training_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.train_acc)

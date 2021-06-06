@@ -74,8 +74,6 @@ warnings.simplefilter("ignore")
 @optgroup.option('--pc-conv-filters', default=32, type=int,
                  help='Number of convolutional filters, also size of the prototype')
 @optgroup.option('--pc-conv-filter-size', default=3, type=int, help='Size of convolutional filter')
-@optgroup.option('--pc-conv-stride', default=1, type=int, help='Size of stride in convolutional layer')
-@optgroup.option('--pc-conv-padding', default=1, type=int, help='Size of padding in convolutional layer')
 @optgroup.option('--pc-project-prototypes-every-n', default=4, type=int)
 @optgroup.option('--pc-prototypes-init', type=click.Choice(['rand', 'zeros', 'xavier']), default='rand',
                  help='How weights in PrototypeLayer should be initialized')
@@ -144,7 +142,7 @@ def train(**args):
                 save_weights_only=True, save_top_k=1, monitor='val_acc_' + i,
                 period=params.pc_project_prototypes_every_n
             )
-            early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=7, verbose=True, mode='min', min_delta=0.005)
+            early_stop = EarlyStopping(monitor=f'val_loss_{i}', patience=10, verbose=True, mode='min', min_delta=0.005)
             callbacks = deepcopy(base_callbacks) + [model_checkpoint, early_stop]
 
             lit_module = model_to_litmodule[params.model]

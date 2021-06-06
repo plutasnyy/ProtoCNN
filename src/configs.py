@@ -20,7 +20,7 @@ dataset_tokens_length = {
 
 dataset_to_number_of_prototypes = {
     'imdb': 32,
-    'amazon': 16,
+    'amazon': 32,
     'yelp': 32,
     'rottentomatoes': 32,
     'hotel': 32
