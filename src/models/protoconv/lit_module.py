@@ -210,8 +210,9 @@ class ProtoConvLitModule(pl.LightningModule):
         non_important_prototypes_idxs = (abs(self.fc1.weight[0]) <= self.prototype_importance_threshold) \
                                         * self.enabled_prototypes_mask
         remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).squeeze(1).tolist()
-        if 1 <= len(remove_ids) <= self.current_prototypes_number - 2:
-            self._remove_prototypes(remove_ids)
+        if 1 <= len(remove_ids):
+            shorten_ids = remove_ids[:self.current_prototypes_number - 6]
+            self._remove_prototypes(shorten_ids)
             print(f'Prototypes {remove_ids}, were removed')
 
     @torch.no_grad()
@@ -299,7 +300,7 @@ class ProtoConvLitModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         lr_scheduler = {
-            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.1, verbose=True),
+            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.1, verbose=True, threshold=0.005),
             'name': f'learning_rate_{self.fold_id}',
             'monitor': f'val_loss_{self.fold_id}'
         }
