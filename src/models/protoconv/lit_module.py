@@ -56,7 +56,11 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_similarity_threshold = 0.2
         self.prototype_importance_threshold = 0.002
 
+        self.increment_number_of_prototypes = 2
+        self.first_trim_after_projection_epoch = 2 # count from 0
+
         self.max_number_of_prototypes = 100
+
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
             torch.ones(self.current_prototypes_number),
@@ -101,7 +105,8 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
-        self._add_prototypes(2)
+        if self.current_epoch >= self.first_trim_after_projection_epoch + 1:
+            self._add_prototypes(self.increment_number_of_prototypes)
 
     def training_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.train_acc)
@@ -143,8 +148,9 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
-        self._remove_non_important_prototypes()
-        self._merge_similar_prototypes()
+        if self.current_epoch >= self.first_trim_after_projection_epoch:
+            self._remove_non_important_prototypes()
+            self._merge_similar_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -211,7 +217,7 @@ class ProtoConvLitModule(pl.LightningModule):
                                         * self.enabled_prototypes_mask
         remove_ids = torch.nonzero(non_important_prototypes_idxs, as_tuple=False).squeeze(1).tolist()
         if 1 <= len(remove_ids):
-            shorten_ids = remove_ids[:self.current_prototypes_number - 6]
+            shorten_ids = remove_ids[:self.current_prototypes_number - 4]
             self._remove_prototypes(shorten_ids)
             print(f'Prototypes {remove_ids}, were removed')
 

@@ -17,8 +17,8 @@ prepare zip with data:
 
 Example run:
 ```bash
-sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
-    --run-name 'log sim' \
+sbatch --job-name 'example run' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
+    --run-name 'example run' \
     --project-name 'mgr-bench' \
     --datasets 'all' \
     --model 'protoconv' \
@@ -27,7 +27,7 @@ sbatch --job-name '100proto' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src
     --epoch 30 \
     --batch-size 32 \
     --pc-conv-filters 64 \
-    --pc-conv-filter-size 3 \
+    --pc-conv-filter-size 5 \
     --pc-project-prototypes-every-n 1 \
     --pc-prototypes-init 'rand' \
     --pc-number-of-prototypes 16 \
