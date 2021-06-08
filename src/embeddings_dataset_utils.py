@@ -30,7 +30,7 @@ def get_dataset(train_df, valid_df, batch_size, cache=None, gpus=1, vectors=None
         device='cuda' if torch.cuda.is_available() and gpus else 'cpu'
     )
 
-    embeddings = vectors if vectors is not None else GloVe('840B', cache=cache)
+    embeddings = vectors if vectors is not None else GloVe('twitter.27B', cache=cache)
     TEXT.build_vocab(train_dataset.text, vectors=embeddings)
 
     return TEXT, LABEL, train_loader, val_loader
