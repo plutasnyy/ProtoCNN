@@ -1,7 +1,7 @@
 import os
 import warnings
 
-from torchtext.vocab import FastText
+from torchtext.vocab import FastText, GloVe
 
 from models.protoconv.data_visualizer import DataVisualizer
 
@@ -131,7 +131,7 @@ def train(**args):
         n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
         log_splits(n_splits, logger)
 
-        embeddings = FastText('en', cache=params.cache) if Models(params.model) != Models.distilbert else None
+        embeddings = GloVe('6B', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
         best_models_scores, number_of_prototypes = [], []
         for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):

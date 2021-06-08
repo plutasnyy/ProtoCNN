@@ -3,7 +3,7 @@ import string
 import torch
 from torchtext import data
 from torchtext.data import BucketIterator
-from torchtext.vocab import FastText
+from torchtext.vocab import FastText, GloVe
 
 from dataframe_dataset import DataFrameDataset
 
@@ -30,7 +30,7 @@ def get_dataset(train_df, valid_df, batch_size, cache=None, gpus=1, vectors=None
         device='cuda' if torch.cuda.is_available() and gpus else 'cpu'
     )
 
-    embeddings = vectors if vectors is not None else FastText('en', cache=cache)
+    embeddings = vectors if vectors is not None else GloVe('6B', cache=cache)
     TEXT.build_vocab(train_dataset.text, vectors=embeddings)
 
     return TEXT, LABEL, train_loader, val_loader
