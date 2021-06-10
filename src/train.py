@@ -169,7 +169,7 @@ def train(**args):
                 number_of_prototypes.append(saved_number_of_prototypes)
                 logger.log_hyperparams({
                     f'saved_prototypes_{fold_id}': saved_number_of_prototypes,
-                    f'best_model_path_{fold_id}': model_checkpoint.best_model_path
+                    f'best_model_path_{fold_id}': str(Path(model_checkpoint.best_model_path).name)
                 })
 
                 if params.pc_visualize:
@@ -178,10 +178,8 @@ def train(**args):
                                                f'{data_visualizer.visualize_prototypes()}<br>')
                     logger.experiment.log_figure(f'Prototypes similarity_{fold_id}',
                                                  data_visualizer.visualize_similarity().figure)
-
-                    if fold_id == 0:
-                        logger.experiment.log_html(f'<h3>Random prediction explanations:</h3><br>'
-                                                   f'{data_visualizer.visualize_random_predictions(val_loader, n=10)}')
+                    logger.experiment.log_html(f'<h3>Random prediction explanations:</h3><br>'
+                                               f'{data_visualizer.visualize_random_predictions(val_loader, n=15)}')
 
         if len(best_models_scores) >= 1:
             avg_best, std_best = float(np.mean(np.array(best_models_scores))), float(

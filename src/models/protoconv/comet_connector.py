@@ -1,6 +1,7 @@
 import os
 from ast import literal_eval
 from io import BytesIO
+from pathlib import Path
 
 import comet_ml
 import pandas as pd
@@ -27,6 +28,7 @@ class CometConnector:
                                              experiment=experiment_id)
         self.dataset = self.experiment.get_parameters_summary('data_set')['valueCurrent']
         self.weight_path = self.experiment.get_parameters_summary(f'best_model_path_{fold}')['valueCurrent']
+        self.weight_path=str(Path(self.weight_path).name)
 
         kfold_split_id = list(filter(
             lambda x: x['fileName'] == 'kfold_split_indices.csv', self.experiment.get_asset_list())
