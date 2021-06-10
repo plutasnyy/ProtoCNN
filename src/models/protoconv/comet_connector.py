@@ -18,6 +18,7 @@ class CometConnector:
 
         self.experiment = None
         self.dataset = None
+        self.weight_path = None
         self.TEXT, self.LABEL, self.train_loader, self.val_loader = None, None, None, None
         self.model = None
 
@@ -25,6 +26,8 @@ class CometConnector:
         self.experiment = self.comet_api.get(project_name=self.project_name, workspace=self.workspace,
                                              experiment=experiment_id)
         self.dataset = self.experiment.get_parameters_summary('data_set')['valueCurrent']
+        self.weight_path = self.experiment.get_parameters_summary(f'best_model_path_{fold}')['valueCurrent']
+
         kfold_split_id = list(filter(
             lambda x: x['fileName'] == 'kfold_split_indices.csv', self.experiment.get_asset_list())
         )[0]['assetId']
@@ -41,7 +44,7 @@ class CometConnector:
         self.TEXT, self.LABEL, self.train_loader, self.val_loader = get_dataset(train_df, valid_df, batch_size=1,
                                                                                 cache=None)
 
-    def get_model(self, weights_path):
-        if not os.path.isfile('checkpoints/' + weights_path):
-            self.experiment.download_model(name=weights_path, output_path='checkpoints/', expand=True)
-        self.model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + weights_path)
+    def get_model(self):
+        if not os.path.isfile('checkpoints/' + self.weight_path):
+            self.experiment.download_model(name=self.weight_path, output_path='checkpoints/', expand=True)
+        self.model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + self.weight_path)
