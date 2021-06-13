@@ -123,7 +123,7 @@ def train(**args):
             logger = CometLogger(api_key=comet_config.apikey, project_name=project_name,
                                  workspace=comet_config.workspace)
 
-        # logger.experiment.log_code(folder='src')
+        logger.experiment.log_code(folder='src')
         logger.log_hyperparams(params)
         base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
@@ -131,7 +131,7 @@ def train(**args):
         n_splits = get_n_splits(dataset=df_dataset, x_label='text', y_label='label', folds=params.fold)
         log_splits(n_splits, logger)
 
-        embeddings = GloVe('twitter.27B', cache=params.cache, dim=200) if Models(params.model) != Models.distilbert else None
+        embeddings = GloVe('42B', cache=params.cache) if Models(params.model) != Models.distilbert else None
 
         best_models_scores, number_of_prototypes = [], []
         for fold_id, (train_index, val_index, test_index) in enumerate(n_splits):
