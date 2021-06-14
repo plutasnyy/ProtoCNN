@@ -123,7 +123,7 @@ def train(**args):
             logger = CometLogger(api_key=comet_config.apikey, project_name=project_name,
                                  workspace=comet_config.workspace)
 
-        logger.experiment.log_code(folder='src')
+        # logger.experiment.log_code(folder='src')
         logger.log_hyperparams(params)
         base_callbacks = [LearningRateMonitor(logging_interval='epoch')]
 
