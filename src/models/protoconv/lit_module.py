@@ -57,7 +57,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_importance_threshold = 0.002
 
         self.increment_number_of_prototypes = 2
-        self.first_trim_after_projection_epoch = -1  # count from 0
+        self.first_trim_after_projection_epoch = 2  # count from 0
 
         self.max_number_of_prototypes = 400
         self.dynamic_number = pc_dynamic_number

@@ -14,11 +14,27 @@ prepare zip with data:
 `find data -name "*data.csv" | xargs zip data.zip`
 `python -m spacy download en`
 
+Reproduce CNN:
+```bash
+sbatch --job-name 'cnn' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
+    --run-name 'cnn' \
+    --project-name mgr-bench2\
+    --datasets 'all' \
+    --model 'cnn' \
+    -lr 1e-3 \
+    --seed 0 \
+    --epoch 30 \
+    --batch-size 32 \
+    --cnn-conv-filters 64 \
+    --cnn-filter-size 5 \
+    --fold 5"
+```
+
 Example run:
 ```bash
 sbatch --job-name 'example run' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
     --run-name 'example run' \
-    --project-name 'mgr-bench' \
+    --project-name mgr-bench2\
     --datasets 'all' \
     --model 'protoconv' \
     -lr 1e-3 \
@@ -37,7 +53,7 @@ sbatch --job-name 'example run' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 
     --pc-separation-threshold 1 \
     --pc-l1-loss-weight 1e-2 \
     --pc-visualize True \
-    --pc-dynamic True \
+    --pc-dynamic-number True \
     --fold 5"
     #--fold 1 -fdr 1 --no-logger"` For test run
     ``
