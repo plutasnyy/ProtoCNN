@@ -107,6 +107,7 @@ class ProtoConvLitModule(pl.LightningModule):
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
         if self.dynamic and self.current_epoch >= self.first_trim_after_projection_epoch + 1:
+            print(self.dynamic)
             self._add_prototypes(self.increment_number_of_prototypes)
 
     def training_step(self, batch, batch_nb):
