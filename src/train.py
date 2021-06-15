@@ -79,6 +79,8 @@ warnings.simplefilter("ignore")
                  help='How weights in PrototypeLayer should be initialized')
 @optgroup.option('--pc-visualize', default=False, help='Visualize prototypes after best model in first fold. '
                                                        'Used in trainer and fabric of ProtoConv Module')
+@optgroup.option('--pc-dynamic/--no-pc-dynamic', default=True,
+                 help='Flag to disable dynamic number of prototypes projection')
 def train(**args):
     params = EasyDict(args)
     params.gpu = int(params.gpu)

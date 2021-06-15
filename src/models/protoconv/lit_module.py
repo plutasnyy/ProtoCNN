@@ -25,7 +25,7 @@ class ProtoConvLitModule(pl.LightningModule):
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
                  pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_filter_size=3, pc_prototypes_init='rand', itos=None,
-                 *args, **kwargs):
+                 pc_dynamic=True, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -57,9 +57,10 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_importance_threshold = 0.002
 
         self.increment_number_of_prototypes = 2
-        self.first_trim_after_projection_epoch = 2 # count from 0
+        self.first_trim_after_projection_epoch = 2  # count from 0
 
         self.max_number_of_prototypes = 400
+        self.dynamic = pc_dynamic
 
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
@@ -103,10 +104,10 @@ class ProtoConvLitModule(pl.LightningModule):
         logits = self.fc1(masked_similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist, tokens_per_kernel)
 
-    # @torch.no_grad()
-    # def on_train_epoch_start(self, *args, **kwargs):
-    #     if self.current_epoch >= self.first_trim_after_projection_epoch + 1:
-    #         self._add_prototypes(self.increment_number_of_prototypes)
+    @torch.no_grad()
+    def on_train_epoch_start(self, *args, **kwargs):
+        if self.dynamic and self.current_epoch >= self.first_trim_after_projection_epoch + 1:
+            self._add_prototypes(self.increment_number_of_prototypes)
 
     def training_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.train_acc)
@@ -148,9 +149,9 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
-        # if self.current_epoch >= self.first_trim_after_projection_epoch:
-        #     self._remove_non_important_prototypes()
-        #     self._merge_similar_prototypes()
+        if self.dynamic and self.current_epoch >= self.first_trim_after_projection_epoch:
+            self._remove_non_important_prototypes()
+            self._merge_similar_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)
@@ -306,7 +307,8 @@ class ProtoConvLitModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, eps=1e-8, weight_decay=0.1)
         lr_scheduler = {
-            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.1, verbose=True, threshold=0.005),
+            'scheduler': ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.1, verbose=True,
+                                           threshold=0.005),
             'name': f'learning_rate_{self.fold_id}',
             'monitor': f'val_loss_{self.fold_id}'
         }

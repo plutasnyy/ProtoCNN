@@ -2,7 +2,6 @@
 
 `pip install -r requirements.txt --quiet`
 
-
 config.ini:
 ```ini
 [cometml]
@@ -38,6 +37,7 @@ sbatch --job-name 'example run' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 
     --pc-separation-threshold 1 \
     --pc-l1-loss-weight 1e-2 \
     --pc-visualize True \
+    --pc-dynamic True \
     --fold 5"
     #--fold 1 -fdr 1 --no-logger"` For test run
     ``
