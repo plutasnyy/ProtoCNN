@@ -6,7 +6,7 @@ config.ini:
 ```ini
 [cometml]
 apikey = ...
-projectname = mgr
+projectname = mgr-bench2
 workspace = plutasnyy
 ```
 
@@ -32,8 +32,8 @@ sbatch --job-name 'cnn' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/trai
 
 Example run:
 ```bash
-sbatch --job-name 'example run' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
-    --run-name 'example run' \
+sbatch --job-name 'ProtoCNN' -w xeon-09 --gres=gpu:01 -p all --wrap "python3 src/train.py \
+    --run-name 'ProtoCNN' \
     --project-name mgr-bench2\
     --datasets 'all' \
     --model 'protoconv' \

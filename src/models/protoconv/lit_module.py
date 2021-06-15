@@ -53,13 +53,13 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes_init = pc_prototypes_init
         self.itos = itos
 
-        self.prototype_similarity_threshold = 0.2
+        self.prototype_similarity_threshold = 0.35
         self.prototype_importance_threshold = 0.002
 
         self.increment_number_of_prototypes = 2
-        self.first_trim_after_projection_epoch = 2  # count from 0
+        self.first_trim_after_projection_epoch = 2    # count from 0
 
-        self.max_number_of_prototypes = 400
+        self.max_number_of_prototypes = 100
         self.dynamic_number = pc_dynamic_number
 
         self.current_prototypes_number = self.number_of_prototypes
@@ -107,7 +107,6 @@ class ProtoConvLitModule(pl.LightningModule):
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
         if self.dynamic_number is True and self.current_epoch >= (self.first_trim_after_projection_epoch + 1):
-            print("Dynamic curr_epoch>=firstrim+1")
             self._add_prototypes(self.increment_number_of_prototypes)
 
     def training_step(self, batch, batch_nb):
@@ -151,7 +150,6 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
         if self.dynamic_number is True and self.current_epoch >= self.first_trim_after_projection_epoch:
-            print('Dynamic Currepocj>=firsttrim')
             self._remove_non_important_prototypes()
             self._merge_similar_prototypes()
 
