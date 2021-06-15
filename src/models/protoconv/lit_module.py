@@ -25,7 +25,7 @@ class ProtoConvLitModule(pl.LightningModule):
                  pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
                  pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
                  pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_filter_size=3, pc_prototypes_init='rand', itos=None,
-                 pc_dynamic=True, *args, **kwargs):
+                 pc_dynamic_number=True, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -57,10 +57,10 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototype_importance_threshold = 0.002
 
         self.increment_number_of_prototypes = 2
-        self.first_trim_after_projection_epoch = 2  # count from 0
+        self.first_trim_after_projection_epoch = -1  # count from 0
 
         self.max_number_of_prototypes = 400
-        self.dynamic = pc_dynamic
+        self.dynamic_number = pc_dynamic_number
 
         self.current_prototypes_number = self.number_of_prototypes
         self.enabled_prototypes_mask = nn.Parameter(torch.cat([
@@ -106,7 +106,7 @@ class ProtoConvLitModule(pl.LightningModule):
 
     @torch.no_grad()
     def on_train_epoch_start(self, *args, **kwargs):
-        if self.dynamic is True and self.current_epoch >= (self.first_trim_after_projection_epoch + 1):
+        if self.dynamic_number is True and self.current_epoch >= (self.first_trim_after_projection_epoch + 1):
             print("Dynamic curr_epoch>=firstrim+1")
             self._add_prototypes(self.increment_number_of_prototypes)
 
@@ -150,7 +150,7 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
-        if self.dynamic is True and self.current_epoch >= self.first_trim_after_projection_epoch:
+        if self.dynamic_number is True and self.current_epoch >= self.first_trim_after_projection_epoch:
             print('Dynamic Currepocj>=firsttrim')
             self._remove_non_important_prototypes()
             self._merge_similar_prototypes()
