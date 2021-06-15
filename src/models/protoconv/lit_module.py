@@ -104,10 +104,13 @@ class ProtoConvLitModule(pl.LightningModule):
         logits = self.fc1(masked_similarity).squeeze(1)
         return PrototypeDetailPrediction(latent_space, distances, logits, min_dist, tokens_per_kernel)
 
-    # @torch.no_grad()
-    # def on_train_epoch_start(self, *args, **kwargs):
-    #     if self.dynamic and self.current_epoch >= (self.first_trim_after_projection_epoch + 1):
-    #         self._add_prototypes(self.increment_number_of_prototypes)
+    @torch.no_grad()
+    def on_train_epoch_start(self, *args, **kwargs):
+        if self.dynamic is True:
+            print('Dynamic')
+            if self.current_epoch >= (self.first_trim_after_projection_epoch + 1):
+                print("curr_epoch>=firstrim+1")
+                self._add_prototypes(self.increment_number_of_prototypes)
 
     def training_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.train_acc)
@@ -149,9 +152,12 @@ class ProtoConvLitModule(pl.LightningModule):
         self.prototypes.prototypes.data.copy_(torch.tensor(projected_prototypes))
         self.prototype_tokens.data.copy_(torch.tensor(prototype_tokens))
 
-        # if self.dynamic and (self.current_epoch >= self.first_trim_after_projection_epoch):
-        #     self._remove_non_important_prototypes()
-        #     self._merge_similar_prototypes()
+        if self.dynamic is True:
+            print('Dynamic')
+            if self.current_epoch >= self.first_trim_after_projection_epoch:
+                print('Currepocj>=firsttrim')
+                self._remove_non_important_prototypes()
+                self._merge_similar_prototypes()
 
     def validation_step(self, batch, batch_nb):
         losses = self.learning_step(batch, self.valid_acc)

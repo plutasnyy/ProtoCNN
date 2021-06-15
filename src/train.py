@@ -86,7 +86,6 @@ def train(**args):
 
     config = ConfigParser()
     config.read('config.ini')
-
     if params.datasets == ['all']:
         params.datasets = ['imdb', 'amazon', 'yelp', 'rottentomatoes', 'hotel']
 
