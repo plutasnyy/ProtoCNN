@@ -134,4 +134,5 @@ checkpoints/*
 /config.ini
 .data
 .vector_cache
+lightning_logs
 dataset

@@ -21,11 +21,11 @@ class ProtoConvLitModule(pl.LightningModule):
         'log': lambda x: torch.log((x + 1) / (x + 1e-4))
     }
 
-    def __init__(self, vocab_size, embedding_dim, fold_id=1, lr=1e-3, static_embedding=True,
-                 pc_project_prototypes_every_n=4, pc_sim_func='log', pc_separation_threshold=10,
-                 pc_number_of_prototypes=16, pc_conv_filters=32, pc_ce_loss_weight=1, pc_sep_loss_weight=0,
-                 pc_cls_loss_weight=0, pc_l1_loss_weight=0, pc_conv_filter_size=3, pc_prototypes_init='rand', itos=None,
-                 pc_dynamic_number=True, *args, **kwargs):
+    def __init__(self, vocab_size, embedding_dim, fold_id=0, lr=1e-3, static_embedding=True,
+                 pc_project_prototypes_every_n=1, pc_sim_func='log', pc_separation_threshold=1,
+                 pc_number_of_prototypes=16, pc_conv_filters=64, pc_ce_loss_weight=0.99, pc_sep_loss_weight=0.005,
+                 pc_cls_loss_weight=0.005, pc_l1_loss_weight=0.01, pc_conv_filter_size=5, pc_prototypes_init='rand',
+                 itos=None, pc_dynamic_number=True, verbose_proto=1, *args, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
@@ -52,12 +52,13 @@ class ProtoConvLitModule(pl.LightningModule):
 
         self.prototypes_init = pc_prototypes_init
         self.itos = itos
+        self.verbose_proto = verbose_proto
 
         self.prototype_similarity_threshold = 0.3
         self.prototype_importance_threshold = 0.002
 
         self.increment_number_of_prototypes = 2
-        self.first_trim_after_projection_epoch = 2    # count from 0
+        self.first_trim_after_projection_epoch = 2  # count from 0
 
         self.max_number_of_prototypes = 100
         self.dynamic_number = pc_dynamic_number
@@ -220,7 +221,8 @@ class ProtoConvLitModule(pl.LightningModule):
         if 1 <= len(remove_ids):
             shorten_ids = remove_ids[:self.current_prototypes_number - 4]
             self._remove_prototypes(shorten_ids)
-            print(f'Prototypes {remove_ids}, were removed')
+            if self.verbose_proto:
+                print(f'Prototypes {remove_ids}, were removed')
 
     @torch.no_grad()
     def _merge_similar_prototypes(self):
@@ -244,11 +246,13 @@ class ProtoConvLitModule(pl.LightningModule):
 
         if 1 <= len(to_list) <= self.current_prototypes_number - 2:
             self._remove_prototypes(to_list, from_list)
-            print(f'Prototypes {to_list}, {from_list} were merged')
+            if self.verbose_proto:
+                print(f'Prototypes {to_list}, {from_list} were merged')
 
     def _add_prototypes(self, quantity):
         added_idx = [self._add_prototype() for _ in range(quantity)]
-        print(f'Added: {added_idx} prototypes')
+        if self.verbose_proto:
+            print(f'Added: {added_idx} prototypes')
 
     @torch.no_grad()
     def _remove_prototypes(self, prototype_ids: list, target_prototype_ids=None):

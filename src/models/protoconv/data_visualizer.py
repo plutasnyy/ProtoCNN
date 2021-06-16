@@ -1,15 +1,12 @@
 from collections import namedtuple, defaultdict
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 
 from utils import html_escape
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-sns.set(font_scale=0.8, style='darkgrid')
 
 
 class DataVisualizer:
@@ -34,7 +31,7 @@ class DataVisualizer:
         words_matrix = self.model.prototype_tokens.tolist()
         for tokens_list in words_matrix:
             words = [self.model.itos[int(token)] for token in tokens_list]
-            words = [w for w in words if w not in ['<START>', '<END>', '<unk>', '<pad>']]
+            words = [w for w in words if w not in ['<START>', '<END>', '<pad>']]
             self.prototypes_words.append(words)
             self.prototypes.append(' '.join(words))
 
@@ -55,9 +52,8 @@ class DataVisualizer:
         return text
 
     @torch.no_grad()
-    def predict(self, tokens, true_label=None, output_file_path=None):
+    def predict(self, tokens, true_label=None, output_file_path=None, top3=True):
         from models.protoconv.return_wrappers import PrototypeDetailPrediction
-
         output: PrototypeDetailPrediction = self.model(tokens)
         similarities = self.local(self.model.dist_to_sim['log'](output.min_distances.squeeze(0)))
         evidence = (similarities * self.fc_weights)
@@ -73,12 +69,17 @@ class DataVisualizer:
 
         y_pred: int = int(output.logits > 0)
 
-        words = [self.model.itos[j] for j in list(tokens[0])]
-        text = " ".join(words)
+        words = [self.model.itos[j] for j in list(tokens[0]) if self.model.itos[j] not in ['<START>', '<END>']]
+        text = html_escape(" ".join(words))
 
         VisRepresentation = namedtuple("VisRepresentation", "patch_text proto_text similarity weight evidence")
         prototypes_vis_per_class = defaultdict(list)
-        for class_id, prototype_idx in negative_protos_idxs[:3] + positive_protos_idxs[:3]:
+
+        if top3:
+            negative_protos_idxs = negative_protos_idxs[:3]
+            positive_protos_idxs = positive_protos_idxs[:3]
+
+        for class_id, prototype_idx in negative_protos_idxs + positive_protos_idxs:
             patch_center_id = np.argmin(self.local(output.distances)[0, prototype_idx, :])
             if len(words) > self.context:
                 patch_center_id = min(max(self.context + 1, patch_center_id), len(words) - 1 - self.context - 1)
@@ -88,29 +89,31 @@ class DataVisualizer:
 
             patch_words = words[first_index:last_index]
             patch_words_str = html_escape(' '.join(w for w in patch_words if w not in ['<START>', '<END>']))
-            prototype_html = self.prototypes[prototype_idx]
+            prototype_html = html_escape(self.prototypes[prototype_idx])
             multiplier = 1 if class_id else -1
             prototypes_vis_per_class[class_id].append(
                 VisRepresentation(patch_words_str, prototype_html, similarities[prototype_idx],
                                   self.fc_weights[prototype_idx] * multiplier, evidence[prototype_idx] * multiplier)
             )
 
+        class_desc = {0: 'Negative', 1: 'Positive'}
+
         y_true_text = ''
         if true_label is not None:
-            y_true_text = f', <b>True</b>: {true_label}'
+            y_true_text = f', <b>Gold standard</b>: {class_desc[true_label]}'
 
-        lines = [f'<b>Example</b>: {text} <br><br>'
-                 f'<b>Prediction</b>: {y_pred}{y_true_text}<br>']
+        lines = [f'<b>Input example</b>: {text} <br><br>'
+                 f'<b>Prediction</b>: {class_desc[y_pred]}{y_true_text}<br>']
 
         for class_id, representations in prototypes_vis_per_class.items():
-            lines.append(f'Evidence for class {class_id}:')
-            lines.append('<table style="width:800px"><tr><td><b>Input</b></td><td><b>Prototype</b></td>'
+            lines.append(f'Evidence for {class_desc[class_id]} sentiment:')
+            lines.append('<table style="width:800px"><tr><td><b>Most similar phrase</b></td><td><b>Prototype</b></td>'
                          '<td><b>Similarity * Weight</b></td></tr>')
             for repr in representations:
                 line = f'<tr><td><span">{repr.patch_text} </span> </td> <td> {repr.proto_text} </td> <td>{repr.similarity:.2f} * {repr.weight:.2f} = <b>{repr.evidence:.2f}</b></td></tr>'
                 lines[-1] += line
             lines[-1] += '</table>'
-            lines[-1] += f'Sum of evidence for class {class_id}: <b>{sum_of_evidence[class_id]:.2f}</b><br>'
+            lines[-1] += f'Sum of evidence: <b>{sum_of_evidence[class_id]:.2f}</b><br>'
 
         text = '<br>'.join(lines)
 

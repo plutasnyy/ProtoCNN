@@ -11,11 +11,12 @@ from models.protoconv.lit_module import ProtoConvLitModule
 
 
 class CometConnector:
-    def __init__(self, apikey, project_name, workspace):
+    def __init__(self, apikey, project_name, workspace, rel_path='.'):
         self.comet_api = comet_ml.api.API(api_key=apikey)
         self.apikey = apikey
         self.project_name = project_name
         self.workspace = workspace
+        self.rel_path = rel_path
 
         self.experiment = None
         self.dataset = None
@@ -28,7 +29,7 @@ class CometConnector:
                                              experiment=experiment_id)
         self.dataset = self.experiment.get_parameters_summary('data_set')['valueCurrent']
         self.weight_path = self.experiment.get_parameters_summary(f'best_model_path_{fold}')['valueCurrent']
-        self.weight_path=str(Path(self.weight_path).name)
+        self.weight_path = str(Path(self.weight_path).name)
 
         kfold_split_id = list(filter(
             lambda x: x['fileName'] == 'kfold_split_indices.csv', self.experiment.get_asset_list())
@@ -40,13 +41,14 @@ class CometConnector:
         val_index = literal_eval(kfold_split['val_indices'])
         test_index = literal_eval(kfold_split['test_indices'])
 
-        df_dataset = pd.read_csv(f'data/{self.dataset}/tokenized_data.csv')
+        df_dataset = pd.read_csv(f'{self.rel_path}/data/{self.dataset}/tokenized_data.csv')
         train_df, valid_df = df_dataset.iloc[train_index + val_index], df_dataset.iloc[test_index]
 
         self.TEXT, self.LABEL, self.train_loader, self.val_loader = get_dataset(train_df, valid_df, batch_size=1,
-                                                                                cache=None)
+                                                                                cache=f'{self.rel_path}/.vector_cache')
 
     def get_model(self):
-        if not os.path.isfile('checkpoints/' + self.weight_path):
-            self.experiment.download_model(name=self.weight_path, output_path='checkpoints/', expand=True)
-        self.model = ProtoConvLitModule.load_from_checkpoint('checkpoints/' + self.weight_path)
+        if not os.path.isfile(f'{self.rel_path}/checkpoints/{self.weight_path}'):
+            self.experiment.download_model(name=self.weight_path, output_path=f'{self.rel_path}/checkpoints/',
+                                           expand=True)
+        self.model = ProtoConvLitModule.load_from_checkpoint(f'{self.rel_path}/checkpoints/' + self.weight_path)

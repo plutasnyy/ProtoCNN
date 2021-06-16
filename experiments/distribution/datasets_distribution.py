@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 sns.set_style('darkgrid')
 sns.set_context('paper')
 result_df = pd.DataFrame()
-Path('img/distribution').mkdir(exist_ok=True, parents=True)
+Path('distribution').mkdir(exist_ok=True, parents=True)
 
 for d in ['amazon', 'hotel', 'imdb', 'rottentomatoes', 'yelp']:
     df = pd.read_csv('data/{}/data.csv'.format(d))
@@ -15,5 +15,5 @@ for d in ['amazon', 'hotel', 'imdb', 'rottentomatoes', 'yelp']:
     sns.displot(df, x="Number of tokens", kind="kde", bw_adjust=2)
     plt.title(f'Length of the examples (in tokens) - {d.upper()}')
     plt.tight_layout()
-    savefig(f'img/distribution/{d}.jpg')
+    savefig(f'distribution/{d}.jpg')
     clf()

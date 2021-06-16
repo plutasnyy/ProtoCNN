@@ -44,7 +44,7 @@ warnings.simplefilter("ignore")
 @optgroup.option('--model', type=click.Choice(['distilbert', 'cnn', 'protoconv']), required=True,
                  help='Which model should be used')
 @optgroup.option('--datasets', required=True, multiple=True,
-                 help='Few of amazon, hotel, imdb, yelp, rottentomatoes, all')
+                 help='One of amazon, hotel, imdb, yelp, rottentomatoes, all')
 @optgroup.option('--epoch', default=30, type=int, help='Number of epochs')
 @optgroup.option('--fold', default=1, type=int, help='Whenever train using one split, or 5-fold')
 @optgroup.option('-lr', default=2e-5, type=float, help='Learning rate')
