@@ -107,10 +107,10 @@ class DataVisualizer:
 
         for class_id, representations in prototypes_vis_per_class.items():
             lines.append(f'Evidence for {class_desc[class_id]} sentiment:')
-            lines.append('<table style="width:800px"><tr><td><b>Most similar phrase</b></td><td><b>Prototype</b></td>'
+            lines.append('<table style="width:800px"><tr><td><b>Prototype</b></td><td><b>Most similar phrase</b></td>'
                          '<td><b>Similarity * Weight</b></td></tr>')
             for repr in representations:
-                line = f'<tr><td><span">{repr.patch_text} </span> </td> <td> {repr.proto_text} </td> <td>{repr.similarity:.2f} * {repr.weight:.2f} = <b>{repr.evidence:.2f}</b></td></tr>'
+                line = f'<tr><td><span">{repr.proto_text} </span> </td> <td> {repr.patch_text} </td> <td>{repr.similarity:.2f} * {repr.weight:.2f} = <b>{repr.evidence:.2f}</b></td></tr>'
                 lines[-1] += line
             lines[-1] += '</table>'
             lines[-1] += f'Sum of evidence: <b>{sum_of_evidence[class_id]:.2f}</b><br>'
