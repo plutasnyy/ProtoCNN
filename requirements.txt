@@ -13,4 +13,5 @@ spacy==2.3.5
 dill==0.3.3
 click-option-group==0.5.2
 nltk==3.6.2
+more-itertools
 IPython
